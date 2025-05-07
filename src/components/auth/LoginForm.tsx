@@ -7,22 +7,38 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Clock } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const validateEmail = (email: string) => {
+    // Simple email validation
+    return email.includes('@') && email.includes('.');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    
+    if (!validateEmail(email)) {
+      setError("Email inválido. Por favor, verifique e tente novamente.");
+      return;
+    }
+    
     setIsLoading(true);
     
     setTimeout(() => {
       const success = login(email, password);
       if (success) {
         navigate("/dashboard");
+      } else {
+        setError("Credenciais inválidas. Por favor, verifique e tente novamente.");
       }
       setIsLoading(false);
     }, 1000); // Simulate network delay
@@ -42,14 +58,22 @@ const LoginForm: React.FC = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive" className="py-2">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                type="email"
+                type="text" 
                 placeholder="seu.email@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }}
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -65,7 +89,10 @@ const LoginForm: React.FC = () => {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(null);
+                }}
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
