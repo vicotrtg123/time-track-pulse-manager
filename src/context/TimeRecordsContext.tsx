@@ -1,9 +1,8 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from "react";
 import { TimeRecord, ChangeRequest } from "@/types";
-import { timeRecords as mockTimeRecords, changeRequests as mockChangeRequests } from "@/lib/mock-data";
 import { useAuth } from "./AuthContext";
-import { getCurrentDate, getCurrentTime, isValidTimeRange } from "@/lib/utils";
+import { timeRecordService, changeRequestService } from "@/services/api";
 import { toast } from "sonner";
 
 interface TimeRecordsContextType {
@@ -31,48 +30,46 @@ interface TimeRecordsContextType {
 const TimeRecordsContext = createContext<TimeRecordsContextType | undefined>(undefined);
 
 export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>(mockTimeRecords);
-  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>(mockChangeRequests);
+  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const { currentUser } = useAuth();
-
+  
+  // Fetch initial data
+  useEffect(() => {
+    // Load initial data
+    const loadTimeRecords = async () => {
+      const records = timeRecordService.getAllRecords();
+      setTimeRecords(records);
+    };
+    
+    const loadChangeRequests = async () => {
+      const requests = changeRequestService.getPendingRequests();
+      setChangeRequests(requests);
+    };
+    
+    loadTimeRecords();
+    loadChangeRequests();
+  }, []);
+  
   const getUserRecords = (userId: string): TimeRecord[] => {
-    return timeRecords
-      .filter((record) => record.userId === userId)
-      .sort((a, b) => {
-        // First sort by date (newest first)
-        const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
-        if (dateComparison !== 0) return dateComparison;
-        
-        // If same date, sort by check in time
-        return b.checkIn.localeCompare(a.checkIn);
-      });
+    return timeRecordService.getUserRecords(userId);
   };
 
   const getPendingChangeRequests = (): ChangeRequest[] => {
-    return changeRequests
-      .filter((request) => request.status === "pending")
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return changeRequestService.getPendingRequests();
   };
 
   const getTodayRecords = (userId: string): TimeRecord[] => {
-    const today = getCurrentDate();
-    return timeRecords
-      .filter((record) => record.userId === userId && record.date === today)
-      .sort((a, b) => b.checkIn.localeCompare(a.checkIn)); // Latest check-in first
+    return timeRecordService.getTodayRecords(userId);
   };
 
   const getActiveRecord = (userId: string): TimeRecord | null => {
-    const today = getCurrentDate();
-    return timeRecords.find(
-      (record) => 
-        record.userId === userId && 
-        record.date === today && 
-        record.checkOut === null
-    ) || null;
+    return timeRecordService.getActiveRecord(userId);
   };
 
   const hasActiveCheckIn = (userId: string): boolean => {
-    return getActiveRecord(userId) !== null;
+    const activeRecord = getActiveRecord(userId);
+    return activeRecord !== null;
   };
 
   const checkIn = (userId: string, notes?: string): void => {
@@ -82,48 +79,26 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
       return;
     }
 
-    const newRecord: TimeRecord = {
-      id: `tr-${Date.now()}`,
-      userId,
-      date: getCurrentDate(),
-      checkIn: getCurrentTime(),
-      checkOut: null,
-      notes,
-    };
-
-    setTimeRecords((prev) => [...prev, newRecord]);
-    toast.success("Entrada registrada com sucesso!");
+    const newRecord = timeRecordService.checkIn(userId, notes);
+    
+    if (newRecord) {
+      setTimeRecords(prev => [...prev, newRecord]);
+      toast.success("Entrada registrada com sucesso!");
+    } else {
+      toast.error("Não foi possível registrar sua entrada.");
+    }
   };
 
   const checkOut = (userId: string, recordId: string, notes?: string): void => {
-    const record = timeRecords.find((r) => r.id === recordId);
+    const updatedRecord = timeRecordService.checkOut(userId, recordId, notes);
     
-    if (!record) {
-      toast.error("Registro não encontrado");
+    if (!updatedRecord) {
+      toast.error("Não foi possível registrar sua saída.");
       return;
     }
 
-    if (record.checkOut) {
-      toast.error("Saída já registrada");
-      return;
-    }
-
-    const checkOutTime = getCurrentTime();
-    
-    // Validate time range
-    if (!isValidTimeRange(record.checkIn, checkOutTime)) {
-      toast.error("Hora de saída não pode ser anterior à hora de entrada");
-      return;
-    }
-
-    const updatedRecord = {
-      ...record,
-      checkOut: checkOutTime,
-      notes: notes || record.notes,
-    };
-
-    setTimeRecords((prev) =>
-      prev.map((r) => (r.id === recordId ? updatedRecord : r))
+    setTimeRecords(prev =>
+      prev.map(r => r.id === recordId ? updatedRecord : r)
     );
 
     toast.success("Saída registrada com sucesso!");
@@ -137,76 +112,65 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
     suggestedCheckOut: string | null,
     reason: string
   ): void => {
-    const record = timeRecords.find((r) => r.id === recordId);
-    
-    if (!record) {
-      toast.error("Registro não encontrado");
-      return;
-    }
-
-    // Validate time range if both values are provided
-    if (suggestedCheckIn && suggestedCheckOut && !isValidTimeRange(suggestedCheckIn, suggestedCheckOut)) {
-      toast.error("Hora de saída não pode ser anterior à hora de entrada");
-      return;
-    }
-
-    const newRequest: ChangeRequest = {
-      id: `cr-${Date.now()}`,
+    const newRequest = changeRequestService.createChangeRequest(
       recordId,
       userId,
       userName,
-      originalCheckIn: record.checkIn,
-      originalCheckOut: record.checkOut,
       suggestedCheckIn,
       suggestedCheckOut,
-      date: record.date,
-      reason,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-
-    setChangeRequests((prev) => [...prev, newRequest]);
-    toast.success("Solicitação enviada para aprovação!");
+      reason
+    );
+    
+    if (newRequest) {
+      setChangeRequests(prev => [...prev, newRequest]);
+      toast.success("Solicitação enviada para aprovação!");
+    } else {
+      toast.error("Não foi possível criar a solicitação.");
+    }
   };
 
   const approveChangeRequest = (requestId: string): void => {
-    const request = changeRequests.find((r) => r.id === requestId);
+    const success = changeRequestService.approveChangeRequest(requestId);
     
-    if (!request) {
-      toast.error("Solicitação não encontrada");
-      return;
-    }
-
-    // Update the change request status
-    setChangeRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: "approved" } : r
-      )
-    );
-
-    // Update the time record
-    setTimeRecords((prev) =>
-      prev.map((r) =>
-        r.id === request.recordId
-          ? {
+    if (success) {
+      // Update local state
+      const updatedRequest = changeRequests.find(r => r.id === requestId);
+      if (updatedRequest) {
+        setChangeRequests(prev =>
+          prev.map(r => r.id === requestId ? { ...r, status: "approved" } : r)
+        );
+        
+        // Find and update the corresponding time record
+        const record = timeRecords.find(r => r.id === updatedRequest.recordId);
+        if (record) {
+          setTimeRecords(prev =>
+            prev.map(r => r.id === record.id ? {
               ...r,
-              checkIn: request.suggestedCheckIn,
-              checkOut: request.suggestedCheckOut,
-            }
-          : r
-      )
-    );
-
-    toast.success("Solicitação aprovada com sucesso!");
+              checkIn: updatedRequest.suggestedCheckIn,
+              checkOut: updatedRequest.suggestedCheckOut
+            } : r)
+          );
+        }
+      }
+      
+      toast.success("Solicitação aprovada com sucesso!");
+    } else {
+      toast.error("Não foi possível aprovar a solicitação.");
+    }
   };
 
   const rejectChangeRequest = (requestId: string): void => {
-    setChangeRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: "rejected" } : r
-      )
-    );
-    toast.info("Solicitação rejeitada");
+    const success = changeRequestService.rejectChangeRequest(requestId);
+    
+    if (success) {
+      setChangeRequests(prev =>
+        prev.map(r => r.id === requestId ? { ...r, status: "rejected" } : r)
+      );
+      
+      toast.info("Solicitação rejeitada");
+    } else {
+      toast.error("Não foi possível rejeitar a solicitação.");
+    }
   };
 
   return (

@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useContext, ReactNode } from "react";
 import { User } from "@/types";
-import { users } from "@/lib/mock-data";
+import { authService } from "@/services/api";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -18,8 +18,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   const login = (email: string, password: string): boolean => {
-    // In a real app, we would verify the password here
-    const user = users.find((u) => u.email === email);
+    const user = authService.login(email, password);
     
     if (user) {
       setCurrentUser(user);
