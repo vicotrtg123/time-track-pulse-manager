@@ -48,8 +48,16 @@ export const timeRecords: TimeRecord[] = [
     userId: "1",
     date: "2025-05-06",
     checkIn: "08:00",
-    checkOut: "17:00",
+    checkOut: "12:00",
     notes: "Reunião com cliente",
+  },
+  {
+    id: "7",
+    userId: "1",
+    date: "2025-05-06",
+    checkIn: "13:00",
+    checkOut: "17:00",
+    notes: "Continuação do trabalho",
   },
   {
     id: "2",

@@ -8,19 +8,20 @@ import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { TimeRecord } from "@/types";
 
 const TimeClockCard: React.FC = () => {
   const { currentUser } = useAuth();
-  const { checkIn, checkOut, hasCheckedInToday, hasCheckedOutToday, getTodayRecord } = useTimeRecords();
+  const { checkIn, checkOut, hasActiveCheckIn, getTodayRecords, getActiveRecord } = useTimeRecords();
   const [notes, setNotes] = useState("");
   const [isCheckInDialogOpen, setIsCheckInDialogOpen] = useState(false);
   const [isCheckOutDialogOpen, setIsCheckOutDialogOpen] = useState(false);
   
   if (!currentUser) return null;
   
-  const hasCheckedIn = hasCheckedInToday(currentUser.id);
-  const hasCheckedOut = hasCheckedOutToday(currentUser.id);
-  const todayRecord = getTodayRecord(currentUser.id);
+  const hasActive = hasActiveCheckIn(currentUser.id);
+  const activeRecord = hasActive ? getActiveRecord(currentUser.id) : null;
+  const todayRecords = getTodayRecords(currentUser.id);
   
   const handleCheckIn = () => {
     checkIn(currentUser.id, notes);
@@ -29,12 +30,15 @@ const TimeClockCard: React.FC = () => {
   };
   
   const handleCheckOut = () => {
-    if (todayRecord) {
-      checkOut(currentUser.id, todayRecord.id, notes);
+    if (activeRecord) {
+      checkOut(currentUser.id, activeRecord.id, notes);
       setNotes("");
       setIsCheckOutDialogOpen(false);
     }
   };
+
+  // Get the last record for display purposes
+  const lastRecord: TimeRecord | null = todayRecords.length > 0 ? todayRecords[0] : null;
   
   return (
     <Card className="shadow-sm">
@@ -48,14 +52,30 @@ const TimeClockCard: React.FC = () => {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col items-center p-4 bg-muted/50 rounded-md">
-            <p className="text-sm font-medium mb-1 text-muted-foreground">Entrada</p>
-            <p className="text-lg font-bold">{hasCheckedIn ? todayRecord?.checkIn : "—"}</p>
+            <p className="text-sm font-medium mb-1 text-muted-foreground">Última Entrada</p>
+            <p className="text-lg font-bold">{lastRecord ? lastRecord.checkIn : "—"}</p>
           </div>
           <div className="flex flex-col items-center p-4 bg-muted/50 rounded-md">
-            <p className="text-sm font-medium mb-1 text-muted-foreground">Saída</p>
-            <p className="text-lg font-bold">{hasCheckedOut ? todayRecord?.checkOut : "—"}</p>
+            <p className="text-sm font-medium mb-1 text-muted-foreground">Última Saída</p>
+            <p className="text-lg font-bold">
+              {lastRecord && lastRecord.checkOut ? lastRecord.checkOut : "—"}
+            </p>
           </div>
         </div>
+
+        {todayRecords.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm font-medium mb-2">Registros de hoje: {todayRecords.length}</p>
+            <div className="text-sm text-muted-foreground">
+              {hasActive && (
+                <div className="flex items-center mb-1">
+                  <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
+                  <span>Registro ativo sem saída</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="flex justify-between">
         <Dialog open={isCheckInDialogOpen} onOpenChange={setIsCheckInDialogOpen}>
@@ -63,7 +83,7 @@ const TimeClockCard: React.FC = () => {
             <Button 
               variant="outline" 
               className="flex-1 mr-2"
-              disabled={hasCheckedIn}
+              disabled={hasActive}
             >
               <LogIn className="mr-2 h-4 w-4" /> Entrada
             </Button>
@@ -96,9 +116,9 @@ const TimeClockCard: React.FC = () => {
         <Dialog open={isCheckOutDialogOpen} onOpenChange={setIsCheckOutDialogOpen}>
           <DialogTrigger asChild>
             <Button 
-              variant={hasCheckedIn && !hasCheckedOut ? "default" : "outline"} 
+              variant={hasActive ? "default" : "outline"} 
               className="flex-1 ml-2"
-              disabled={!hasCheckedIn || hasCheckedOut}
+              disabled={!hasActive}
             >
               <LogOut className="mr-2 h-4 w-4" /> Saída
             </Button>

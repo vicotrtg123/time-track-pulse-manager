@@ -58,6 +58,15 @@ const TimeRecordsTable: React.FC = () => {
     // Only allow editing records that have both check in and check out times
     return record.checkOut !== null;
   };
+
+  // Group records by date for better display
+  const recordsByDate: Record<string, TimeRecord[]> = {};
+  records.forEach(record => {
+    if (!recordsByDate[record.date]) {
+      recordsByDate[record.date] = [];
+    }
+    recordsByDate[record.date].push(record);
+  });
   
   return (
     <>

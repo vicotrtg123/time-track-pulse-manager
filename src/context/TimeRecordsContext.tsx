@@ -23,9 +23,9 @@ interface TimeRecordsContextType {
   ) => void;
   approveChangeRequest: (requestId: string) => void;
   rejectChangeRequest: (requestId: string) => void;
-  getTodayRecord: (userId: string) => TimeRecord | null;
-  hasCheckedInToday: (userId: string) => boolean;
-  hasCheckedOutToday: (userId: string) => boolean;
+  getTodayRecords: (userId: string) => TimeRecord[];
+  getActiveRecord: (userId: string) => TimeRecord | null;
+  hasActiveCheckIn: (userId: string) => boolean;
 }
 
 const TimeRecordsContext = createContext<TimeRecordsContextType | undefined>(undefined);
@@ -38,7 +38,14 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
   const getUserRecords = (userId: string): TimeRecord[] => {
     return timeRecords
       .filter((record) => record.userId === userId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        // First sort by date (newest first)
+        const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateComparison !== 0) return dateComparison;
+        
+        // If same date, sort by check in time
+        return b.checkIn.localeCompare(a.checkIn);
+      });
   };
 
   const getPendingChangeRequests = (): ChangeRequest[] => {
@@ -47,23 +54,31 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
 
-  const getTodayRecord = (userId: string): TimeRecord | null => {
+  const getTodayRecords = (userId: string): TimeRecord[] => {
     const today = getCurrentDate();
-    return timeRecords.find((record) => record.userId === userId && record.date === today) || null;
+    return timeRecords
+      .filter((record) => record.userId === userId && record.date === today)
+      .sort((a, b) => b.checkIn.localeCompare(a.checkIn)); // Latest check-in first
   };
 
-  const hasCheckedInToday = (userId: string): boolean => {
-    return !!getTodayRecord(userId);
+  const getActiveRecord = (userId: string): TimeRecord | null => {
+    const today = getCurrentDate();
+    return timeRecords.find(
+      (record) => 
+        record.userId === userId && 
+        record.date === today && 
+        record.checkOut === null
+    ) || null;
   };
 
-  const hasCheckedOutToday = (userId: string): boolean => {
-    const todayRecord = getTodayRecord(userId);
-    return !!todayRecord?.checkOut;
+  const hasActiveCheckIn = (userId: string): boolean => {
+    return getActiveRecord(userId) !== null;
   };
 
   const checkIn = (userId: string, notes?: string): void => {
-    if (hasCheckedInToday(userId)) {
-      toast.error("Você já registrou entrada hoje");
+    // Check if there is an active check-in without check-out
+    if (hasActiveCheckIn(userId)) {
+      toast.error("Existe um registro de entrada sem saída. Registre a saída antes de uma nova entrada.");
       return;
     }
 
@@ -206,9 +221,9 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
         createChangeRequest,
         approveChangeRequest,
         rejectChangeRequest,
-        getTodayRecord,
-        hasCheckedInToday,
-        hasCheckedOutToday,
+        getTodayRecords,
+        getActiveRecord,
+        hasActiveCheckIn,
       }}
     >
       {children}
