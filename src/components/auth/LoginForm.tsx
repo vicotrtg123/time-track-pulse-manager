@@ -77,7 +77,7 @@ const LoginForm: React.FC = () => {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Tente: admin@example.com ou joao@example.com
+                Exemplos: dsv4@bremen.com.br (Admin) ou victor@hotmail.com (Funcionário)
               </p>
             </div>
             <div className="space-y-2">
@@ -96,7 +96,7 @@ const LoginForm: React.FC = () => {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Qualquer senha será aceita neste demo
+                Admin: 12345678 | Funcionário: 123
               </p>
             </div>
           </CardContent>

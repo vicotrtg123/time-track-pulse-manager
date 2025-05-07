@@ -25,6 +25,20 @@ export const users: User[] = [
     role: "employee",
     avatar: "https://i.pravatar.cc/150?img=3",
   },
+  {
+    id: "4",
+    name: "Admin Bremen",
+    email: "dsv4@bremen.com.br",
+    role: "admin",
+    avatar: "https://i.pravatar.cc/150?img=4",
+  },
+  {
+    id: "5",
+    name: "Victor",
+    email: "victor@hotmail.com",
+    role: "employee",
+    avatar: "https://i.pravatar.cc/150?img=5",
+  },
 ];
 
 // Mock time records
