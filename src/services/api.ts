@@ -69,7 +69,8 @@ export const timeRecordService = {
 
   // Check if user has an active check-in
   hasActiveCheckIn: (userId: string): boolean => {
-    return this.getActiveRecord(userId) !== null;
+    // Fix: Using the function directly instead of 'this' to avoid undefined error
+    return timeRecordService.getActiveRecord(userId) !== null;
   },
 
   // Create a new check-in record
