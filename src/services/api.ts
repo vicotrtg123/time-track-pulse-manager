@@ -4,6 +4,45 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCurrentDate, getCurrentTime, isValidTimeRange } from "@/lib/utils";
 import { toast } from "sonner";
 
+// Helper functions to transform database fields to camelCase for our types
+const transformUser = (dbUser: any): User => {
+  return {
+    id: dbUser.id,
+    name: dbUser.name,
+    email: dbUser.email,
+    role: dbUser.role as "admin" | "employee",
+    avatar: dbUser.avatar
+  };
+};
+
+const transformTimeRecord = (dbRecord: any): TimeRecord => {
+  return {
+    id: dbRecord.id,
+    userId: dbRecord.user_id,
+    date: dbRecord.date,
+    checkIn: dbRecord.check_in,
+    checkOut: dbRecord.check_out,
+    notes: dbRecord.notes
+  };
+};
+
+const transformChangeRequest = (dbRequest: any): ChangeRequest => {
+  return {
+    id: dbRequest.id,
+    recordId: dbRequest.record_id,
+    userId: dbRequest.user_id,
+    userName: dbRequest.users?.name || "",
+    originalCheckIn: dbRequest.original_check_in,
+    originalCheckOut: dbRequest.original_check_out,
+    suggestedCheckIn: dbRequest.suggested_check_in,
+    suggestedCheckOut: dbRequest.suggested_check_out,
+    date: dbRequest.date,
+    reason: dbRequest.reason,
+    status: dbRequest.status as "pending" | "approved" | "rejected",
+    createdAt: dbRequest.created_at
+  };
+};
+
 // User related API functions
 export const authService = {
   login: async (email: string, password: string): Promise<User | null> => {
@@ -21,7 +60,7 @@ export const authService = {
         return null;
       }
       
-      return data as User;
+      return transformUser(data);
     } catch (error) {
       console.error("Login error:", error);
       return null;
@@ -41,7 +80,7 @@ export const authService = {
         return null;
       }
       
-      return data as User;
+      return transformUser(data);
     } catch (error) {
       console.error("Error fetching user by ID:", error);
       return null;
@@ -59,7 +98,7 @@ export const authService = {
         return [];
       }
       
-      return data as User[];
+      return data.map(transformUser);
     } catch (error) {
       console.error("Error fetching all users:", error);
       return [];
@@ -83,7 +122,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data as TimeRecord[];
+      return data.map(transformTimeRecord);
     } catch (error) {
       console.error("Error fetching all records:", error);
       return [];
@@ -105,7 +144,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data as TimeRecord[];
+      return data.map(transformTimeRecord);
     } catch (error) {
       console.error("Error fetching user records:", error);
       return [];
@@ -128,7 +167,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data as TimeRecord[];
+      return data.map(transformTimeRecord);
     } catch (error) {
       console.error("Error fetching today's records:", error);
       return [];
@@ -152,7 +191,7 @@ export const timeRecordService = {
         return null;
       }
       
-      return data as TimeRecord | null;
+      return data ? transformTimeRecord(data) : null;
     } catch (error) {
       console.error("Error fetching active record:", error);
       return null;
@@ -196,7 +235,7 @@ export const timeRecordService = {
         return null;
       }
       
-      return data as TimeRecord;
+      return transformTimeRecord(data);
     } catch (error) {
       console.error("Error during check-in:", error);
       return null;
@@ -247,7 +286,7 @@ export const timeRecordService = {
         return null;
       }
       
-      return data as TimeRecord;
+      return transformTimeRecord(data);
     } catch (error) {
       console.error("Error during check-out:", error);
       return null;
@@ -277,20 +316,7 @@ export const changeRequestService = {
       }
       
       // Transform the data to match our ChangeRequest type
-      return data.map(item => ({
-        id: item.id,
-        recordId: item.record_id,
-        userId: item.user_id,
-        userName: item.users.name,
-        originalCheckIn: item.original_check_in,
-        originalCheckOut: item.original_check_out,
-        suggestedCheckIn: item.suggested_check_in,
-        suggestedCheckOut: item.suggested_check_out,
-        date: item.date,
-        reason: item.reason,
-        status: item.status,
-        createdAt: item.created_at
-      }));
+      return data.map(transformChangeRequest);
     } catch (error) {
       console.error("Error fetching pending requests:", error);
       return [];
@@ -358,7 +384,7 @@ export const changeRequestService = {
         suggestedCheckOut: data.suggested_check_out,
         date: data.date,
         reason: data.reason,
-        status: data.status,
+        status: data.status as "pending" | "approved" | "rejected",
         createdAt: data.created_at
       };
     } catch (error) {

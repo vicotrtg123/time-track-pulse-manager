@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
   Calendar, 
@@ -24,13 +24,23 @@ const Sidebar = () => {
   const { getPendingChangeRequests } = useTimeRecords();
   const [expanded, setExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const location = useLocation();
   
-  const pendingRequests = getPendingChangeRequests();
-  const pendingCount = pendingRequests.length;
-
   const role = currentUser?.role || "employee";
   const isAdmin = role === "admin";
+
+  // Update pending requests count
+  useEffect(() => {
+    const fetchPendingRequests = async () => {
+      if (isAdmin) {
+        const pendingRequests = await getPendingChangeRequests();
+        setPendingCount(pendingRequests.length);
+      }
+    };
+    
+    fetchPendingRequests();
+  }, [getPendingChangeRequests, isAdmin]);
 
   const toggleSidebar = () => {
     setExpanded(!expanded);
