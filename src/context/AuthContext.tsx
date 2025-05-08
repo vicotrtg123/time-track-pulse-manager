@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  refreshUser: () => Promise<void>; // Add this method
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +41,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     checkUser();
   }, []);
+
+  // Add the refreshUser function
+  const refreshUser = async (): Promise<void> => {
+    try {
+      const users = await authService.getAllUsers();
+      if (currentUser) {
+        const updatedUser = users.find(user => user.id === currentUser.id);
+        if (updatedUser) {
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -75,7 +92,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         isAuthenticated,
-        isLoading
+        isLoading,
+        refreshUser // Add this to the context value
       }}
     >
       {children}

@@ -116,7 +116,7 @@ export const authService = {
           name,
           email,
           role,
-          active: true
+          active: true // Fixed: Adding active property to the database
         })
         .select()
         .single();
