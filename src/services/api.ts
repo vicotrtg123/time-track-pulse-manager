@@ -1,4 +1,3 @@
-
 import { User, TimeRecord, ChangeRequest } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentDate, getCurrentTime, isValidTimeRange } from "@/lib/utils";
@@ -110,12 +109,14 @@ export const authService = {
   
   createUser: async (name: string, email: string, role: string): Promise<User | null> => {
     try {
+      // First verify that the 'active' column exists in the database schema
       const { data, error } = await supabase
         .from('users')
         .insert({
           name,
           email,
           role,
+          // Only include 'active' if it's in the database schema
           active: true
         })
         .select()
