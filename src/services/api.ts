@@ -116,7 +116,7 @@ export const authService = {
           name,
           email,
           role,
-          active: true // Fixed: Adding active property to the database
+          active: true
         })
         .select()
         .single();
@@ -169,7 +169,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data.map(transformTimeRecord);
+      return data.map((record) => transformTimeRecord(record));
     } catch (error) {
       console.error("Error fetching all records:", error);
       return [];
@@ -214,7 +214,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data.map(transformTimeRecord);
+      return data.map((record) => transformTimeRecord(record));
     } catch (error) {
       console.error("Error fetching user records:", error);
       return [];
@@ -261,7 +261,7 @@ export const timeRecordService = {
         return [];
       }
       
-      return data.map(transformTimeRecord);
+      return data.map((record) => transformTimeRecord(record));
     } catch (error) {
       console.error("Error fetching today's records:", error);
       return [];
@@ -410,7 +410,7 @@ export const changeRequestService = {
       }
       
       // Transform the data to match our ChangeRequest type
-      return data.map(transformChangeRequest);
+      return data.map((request) => transformChangeRequest(request));
     } catch (error) {
       console.error("Error fetching pending requests:", error);
       return [];

@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "../ui/button";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { changeRequestService } from "@/services/api";
 
 interface SidebarLinkProps {
@@ -50,7 +50,7 @@ const SidebarLink: React.FC<SidebarLinkProps> = ({ to, icon, label, badge }) => 
 export default function Sidebar() {
   const { currentUser } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [pendingCount, setPendingCount] = useState(0);
   
   // Load the number of pending approval requests
@@ -59,7 +59,7 @@ export default function Sidebar() {
       if (currentUser?.role === "admin") {
         try {
           const pendingRequests = await changeRequestService.getPendingRequests();
-          setPendingCount(pendingRequests.length);
+          setPendingCount(pendingRequests.length || 0);
         } catch (error) {
           console.error("Error loading pending requests count:", error);
         }
