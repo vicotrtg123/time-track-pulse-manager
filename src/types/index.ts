@@ -7,7 +7,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
-  active?: boolean;
+  active: boolean; // Changed from optional to required since it has a default value in the database
 }
 
 export interface TimeRecord {

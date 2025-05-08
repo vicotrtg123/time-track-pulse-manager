@@ -77,7 +77,7 @@ export const authService = {
         .single();
       
       if (error) {
-        console.error("Error fetching user:", error);
+        console.error("Error fetching user by ID:", error);
         return null;
       }
       
@@ -109,14 +109,12 @@ export const authService = {
   
   createUser: async (name: string, email: string, role: string): Promise<User | null> => {
     try {
-      // First verify that the 'active' column exists in the database schema
       const { data, error } = await supabase
         .from('users')
         .insert({
           name,
           email,
           role,
-          // Only include 'active' if it's in the database schema
           active: true
         })
         .select()
