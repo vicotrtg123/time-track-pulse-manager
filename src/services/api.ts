@@ -1,222 +1,436 @@
 
 import { User, TimeRecord, ChangeRequest } from "@/types";
-import { users, timeRecords, changeRequests } from "@/lib/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 import { getCurrentDate, getCurrentTime, isValidTimeRange } from "@/lib/utils";
+import { toast } from "sonner";
 
 // User related API functions
 export const authService = {
-  login: (email: string, password: string): User | null => {
-    // In a real app, we would verify the password here
-    const user = users.find((u) => u.email === email);
-    return user || null;
+  login: async (email: string, password: string): Promise<User | null> => {
+    try {
+      // In a real implementation, this would use Supabase auth
+      // For now, fetch a user with matching email
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching user:", error);
+        return null;
+      }
+      
+      return data as User;
+    } catch (error) {
+      console.error("Login error:", error);
+      return null;
+    }
   },
 
-  getUserById: (userId: string): User | null => {
-    return users.find(user => user.id === userId) || null;
+  getUserById: async (userId: string): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching user:", error);
+        return null;
+      }
+      
+      return data as User;
+    } catch (error) {
+      console.error("Error fetching user by ID:", error);
+      return null;
+    }
   },
 
-  getAllUsers: (): User[] => {
-    return [...users];
+  getAllUsers: async (): Promise<User[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (error) {
+        console.error("Error fetching users:", error);
+        return [];
+      }
+      
+      return data as User[];
+    } catch (error) {
+      console.error("Error fetching all users:", error);
+      return [];
+    }
   }
 };
 
 // Time records related API functions
 export const timeRecordService = {
   // Get all records
-  getAllRecords: (): TimeRecord[] => {
-    return [...timeRecords].sort((a, b) => {
-      // First sort by date (newest first)
-      const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
-      if (dateComparison !== 0) return dateComparison;
+  getAllRecords: async (): Promise<TimeRecord[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
       
-      // If same date, sort by check in time
-      return b.checkIn.localeCompare(a.checkIn);
-    });
+      if (error) {
+        console.error("Error fetching time records:", error);
+        return [];
+      }
+      
+      return data as TimeRecord[];
+    } catch (error) {
+      console.error("Error fetching all records:", error);
+      return [];
+    }
   },
 
   // Get records for a specific user
-  getUserRecords: (userId: string): TimeRecord[] => {
-    return timeRecords
-      .filter((record) => record.userId === userId)
-      .sort((a, b) => {
-        // First sort by date (newest first)
-        const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
-        if (dateComparison !== 0) return dateComparison;
-        
-        // If same date, sort by check in time
-        return b.checkIn.localeCompare(a.checkIn);
-      });
+  getUserRecords: async (userId: string): Promise<TimeRecord[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching user time records:", error);
+        return [];
+      }
+      
+      return data as TimeRecord[];
+    } catch (error) {
+      console.error("Error fetching user records:", error);
+      return [];
+    }
   },
 
   // Get today's records for a user
-  getTodayRecords: (userId: string): TimeRecord[] => {
-    const today = getCurrentDate();
-    return timeRecords
-      .filter((record) => record.userId === userId && record.date === today)
-      .sort((a, b) => b.checkIn.localeCompare(a.checkIn)); // Latest check-in first
+  getTodayRecords: async (userId: string): Promise<TimeRecord[]> => {
+    try {
+      const today = getCurrentDate();
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching today's records:", error);
+        return [];
+      }
+      
+      return data as TimeRecord[];
+    } catch (error) {
+      console.error("Error fetching today's records:", error);
+      return [];
+    }
   },
 
   // Get active record (check in without check out)
-  getActiveRecord: (userId: string): TimeRecord | null => {
-    const today = getCurrentDate();
-    return timeRecords.find(
-      (record) => 
-        record.userId === userId && 
-        record.date === today && 
-        record.checkOut === null
-    ) || null;
+  getActiveRecord: async (userId: string): Promise<TimeRecord | null> => {
+    try {
+      const today = getCurrentDate();
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .is('check_out', null)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error fetching active record:", error);
+        return null;
+      }
+      
+      return data as TimeRecord | null;
+    } catch (error) {
+      console.error("Error fetching active record:", error);
+      return null;
+    }
   },
 
   // Check if user has an active check-in
-  hasActiveCheckIn: (userId: string): boolean => {
-    // Fix: Using the function directly instead of 'this' to avoid undefined error
-    return timeRecordService.getActiveRecord(userId) !== null;
+  hasActiveCheckIn: async (userId: string): Promise<boolean> => {
+    const activeRecord = await timeRecordService.getActiveRecord(userId);
+    return activeRecord !== null;
   },
 
   // Create a new check-in record
-  checkIn: (userId: string, notes?: string): TimeRecord | null => {
-    // Check if there is an active check-in without check-out
-    const today = getCurrentDate();
-    const activeRecord = timeRecords.find(
-      record => record.userId === userId && record.date === today && record.checkOut === null
-    );
+  checkIn: async (userId: string, notes?: string): Promise<TimeRecord | null> => {
+    try {
+      // Check if there is an active check-in without check-out
+      const hasActive = await timeRecordService.hasActiveCheckIn(userId);
+      
+      if (hasActive) {
+        console.error("User already has an active check-in");
+        return null;
+      }
 
-    if (activeRecord) {
-      return null; // Cannot create new check-in if there's an active one
+      const today = getCurrentDate();
+      const now = getCurrentTime();
+
+      const { data, error } = await supabase
+        .from('time_records')
+        .insert({
+          user_id: userId,
+          date: today,
+          check_in: now,
+          check_out: null,
+          notes
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Error creating check-in:", error);
+        return null;
+      }
+      
+      return data as TimeRecord;
+    } catch (error) {
+      console.error("Error during check-in:", error);
+      return null;
     }
-
-    const newRecord: TimeRecord = {
-      id: `tr-${Date.now()}`,
-      userId,
-      date: today,
-      checkIn: getCurrentTime(),
-      checkOut: null,
-      notes,
-    };
-
-    // In a real backend, this would be a database insert
-    timeRecords.push(newRecord);
-    return newRecord;
   },
 
   // Register a check-out
-  checkOut: (userId: string, recordId: string, notes?: string): TimeRecord | null => {
-    const record = timeRecords.find((r) => r.id === recordId);
-    
-    if (!record || record.checkOut) {
+  checkOut: async (userId: string, recordId: string, notes?: string): Promise<TimeRecord | null> => {
+    try {
+      // Get current record to see if it can be updated
+      const { data: record, error: fetchError } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('id', recordId)
+        .single();
+      
+      if (fetchError || !record) {
+        console.error("Error fetching record for check-out:", fetchError);
+        return null;
+      }
+      
+      if (record.check_out) {
+        console.error("Record already has a check-out time");
+        return null;
+      }
+
+      const checkOutTime = getCurrentTime();
+      
+      // Validate time range
+      if (!isValidTimeRange(record.check_in, checkOutTime)) {
+        console.error("Invalid time range: check-out before check-in");
+        return null;
+      }
+
+      // Update the record
+      const { data, error } = await supabase
+        .from('time_records')
+        .update({
+          check_out: checkOutTime,
+          notes: notes || record.notes
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Error updating check-out:", error);
+        return null;
+      }
+      
+      return data as TimeRecord;
+    } catch (error) {
+      console.error("Error during check-out:", error);
       return null;
     }
-
-    const checkOutTime = getCurrentTime();
-    
-    // Validate time range
-    if (!isValidTimeRange(record.checkIn, checkOutTime)) {
-      return null;
-    }
-
-    // In a real backend, this would update a database record
-    const updatedRecord = {
-      ...record,
-      checkOut: checkOutTime,
-      notes: notes || record.notes,
-    };
-
-    // Update the record in our "database"
-    const index = timeRecords.findIndex(r => r.id === recordId);
-    if (index !== -1) {
-      timeRecords[index] = updatedRecord;
-    }
-
-    return updatedRecord;
   }
 };
 
 // Change requests related API functions
 export const changeRequestService = {
   // Get all pending change requests
-  getPendingRequests: (): ChangeRequest[] => {
-    return changeRequests
-      .filter((request) => request.status === "pending")
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  getPendingRequests: async (): Promise<ChangeRequest[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('change_requests')
+        .select(`
+          *,
+          users:user_id (
+            name
+          )
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching pending requests:", error);
+        return [];
+      }
+      
+      // Transform the data to match our ChangeRequest type
+      return data.map(item => ({
+        id: item.id,
+        recordId: item.record_id,
+        userId: item.user_id,
+        userName: item.users.name,
+        originalCheckIn: item.original_check_in,
+        originalCheckOut: item.original_check_out,
+        suggestedCheckIn: item.suggested_check_in,
+        suggestedCheckOut: item.suggested_check_out,
+        date: item.date,
+        reason: item.reason,
+        status: item.status,
+        createdAt: item.created_at
+      }));
+    } catch (error) {
+      console.error("Error fetching pending requests:", error);
+      return [];
+    }
   },
 
   // Create a new change request
-  createChangeRequest: (
+  createChangeRequest: async (
     recordId: string,
     userId: string,
     userName: string,
     suggestedCheckIn: string,
     suggestedCheckOut: string | null,
     reason: string
-  ): ChangeRequest | null => {
-    const record = timeRecords.find((r) => r.id === recordId);
-    
-    if (!record) {
+  ): Promise<ChangeRequest | null> => {
+    try {
+      // Get the original record first
+      const { data: record, error: recordError } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('id', recordId)
+        .single();
+      
+      if (recordError || !record) {
+        console.error("Error fetching original record:", recordError);
+        return null;
+      }
+      
+      // Validate time range if both values are provided
+      if (suggestedCheckIn && suggestedCheckOut && !isValidTimeRange(suggestedCheckIn, suggestedCheckOut)) {
+        console.error("Invalid time range for change request");
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('change_requests')
+        .insert({
+          record_id: recordId,
+          user_id: userId,
+          original_check_in: record.check_in,
+          original_check_out: record.check_out,
+          suggested_check_in: suggestedCheckIn,
+          suggested_check_out: suggestedCheckOut,
+          date: record.date,
+          reason,
+          status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Error creating change request:", error);
+        return null;
+      }
+      
+      // Create response object that matches our ChangeRequest type
+      return {
+        id: data.id,
+        recordId: data.record_id,
+        userId: data.user_id,
+        userName, // We already have this from the input
+        originalCheckIn: data.original_check_in,
+        originalCheckOut: data.original_check_out,
+        suggestedCheckIn: data.suggested_check_in,
+        suggestedCheckOut: data.suggested_check_out,
+        date: data.date,
+        reason: data.reason,
+        status: data.status,
+        createdAt: data.created_at
+      };
+    } catch (error) {
+      console.error("Error creating change request:", error);
       return null;
     }
-
-    // Validate time range if both values are provided
-    if (suggestedCheckIn && suggestedCheckOut && !isValidTimeRange(suggestedCheckIn, suggestedCheckOut)) {
-      return null;
-    }
-
-    const newRequest: ChangeRequest = {
-      id: `cr-${Date.now()}`,
-      recordId,
-      userId,
-      userName,
-      originalCheckIn: record.checkIn,
-      originalCheckOut: record.checkOut,
-      suggestedCheckIn,
-      suggestedCheckOut,
-      date: record.date,
-      reason,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-
-    // In a real backend, this would be a database insert
-    changeRequests.push(newRequest);
-    return newRequest;
   },
 
   // Approve a change request
-  approveChangeRequest: (requestId: string): boolean => {
-    const request = changeRequests.find((r) => r.id === requestId);
-    
-    if (!request) {
+  approveChangeRequest: async (requestId: string): Promise<boolean> => {
+    try {
+      // First get the change request
+      const { data: request, error: requestError } = await supabase
+        .from('change_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+      
+      if (requestError || !request) {
+        console.error("Error fetching change request:", requestError);
+        return false;
+      }
+
+      // Update the change request status
+      const { error: statusError } = await supabase
+        .from('change_requests')
+        .update({ status: 'approved' })
+        .eq('id', requestId);
+      
+      if (statusError) {
+        console.error("Error updating change request status:", statusError);
+        return false;
+      }
+
+      // Update the time record
+      const { error: recordError } = await supabase
+        .from('time_records')
+        .update({
+          check_in: request.suggested_check_in,
+          check_out: request.suggested_check_out
+        })
+        .eq('id', request.record_id);
+      
+      if (recordError) {
+        console.error("Error updating time record:", recordError);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error approving change request:", error);
       return false;
     }
-
-    // Update the change request status
-    const requestIndex = changeRequests.findIndex(r => r.id === requestId);
-    if (requestIndex !== -1) {
-      changeRequests[requestIndex] = { ...request, status: "approved" };
-    }
-
-    // Update the time record
-    const recordIndex = timeRecords.findIndex(r => r.id === request.recordId);
-    if (recordIndex !== -1) {
-      timeRecords[recordIndex] = {
-        ...timeRecords[recordIndex],
-        checkIn: request.suggestedCheckIn,
-        checkOut: request.suggestedCheckOut,
-      };
-    }
-
-    return true;
   },
 
   // Reject a change request
-  rejectChangeRequest: (requestId: string): boolean => {
-    const requestIndex = changeRequests.findIndex(r => r.id === requestId);
-    if (requestIndex === -1) return false;
-    
-    changeRequests[requestIndex] = { 
-      ...changeRequests[requestIndex], 
-      status: "rejected" 
-    };
-    
-    return true;
+  rejectChangeRequest: async (requestId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('change_requests')
+        .update({ status: 'rejected' })
+        .eq('id', requestId);
+      
+      if (error) {
+        console.error("Error rejecting change request:", error);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error rejecting change request:", error);
+      return false;
+    }
   }
 };

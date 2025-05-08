@@ -8,10 +8,10 @@ import { toast } from "sonner";
 interface TimeRecordsContextType {
   timeRecords: TimeRecord[];
   changeRequests: ChangeRequest[];
-  getUserRecords: (userId: string) => TimeRecord[];
-  getPendingChangeRequests: () => ChangeRequest[];
-  checkIn: (userId: string, notes?: string) => void;
-  checkOut: (userId: string, recordId: string, notes?: string) => void;
+  getUserRecords: (userId: string) => Promise<TimeRecord[]>;
+  getPendingChangeRequests: () => Promise<ChangeRequest[]>;
+  checkIn: (userId: string, notes?: string) => Promise<void>;
+  checkOut: (userId: string, recordId: string, notes?: string) => Promise<void>;
   createChangeRequest: (
     recordId: string,
     userId: string,
@@ -19,12 +19,15 @@ interface TimeRecordsContextType {
     suggestedCheckIn: string,
     suggestedCheckOut: string | null,
     reason: string
-  ) => void;
-  approveChangeRequest: (requestId: string) => void;
-  rejectChangeRequest: (requestId: string) => void;
-  getTodayRecords: (userId: string) => TimeRecord[];
-  getActiveRecord: (userId: string) => TimeRecord | null;
-  hasActiveCheckIn: (userId: string) => boolean;
+  ) => Promise<void>;
+  approveChangeRequest: (requestId: string) => Promise<void>;
+  rejectChangeRequest: (requestId: string) => Promise<void>;
+  getTodayRecords: (userId: string) => Promise<TimeRecord[]>;
+  getActiveRecord: (userId: string) => Promise<TimeRecord | null>;
+  hasActiveCheckIn: (userId: string) => Promise<boolean>;
+  isLoading: boolean;
+  refetchTimeRecords: () => Promise<void>;
+  refetchChangeRequests: () => Promise<void>;
 }
 
 const TimeRecordsContext = createContext<TimeRecordsContextType | undefined>(undefined);
@@ -32,144 +35,224 @@ const TimeRecordsContext = createContext<TimeRecordsContextType | undefined>(und
 export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { currentUser } = useAuth();
   
   // Fetch initial data
   useEffect(() => {
-    // Load initial data
-    const loadTimeRecords = async () => {
-      const records = timeRecordService.getAllRecords();
-      setTimeRecords(records);
+    const loadData = async () => {
+      await refetchTimeRecords();
+      await refetchChangeRequests();
     };
     
-    const loadChangeRequests = async () => {
-      const requests = changeRequestService.getPendingRequests();
-      setChangeRequests(requests);
-    };
-    
-    loadTimeRecords();
-    loadChangeRequests();
-  }, []);
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
   
-  const getUserRecords = (userId: string): TimeRecord[] => {
-    return timeRecordService.getUserRecords(userId);
-  };
-
-  const getPendingChangeRequests = (): ChangeRequest[] => {
-    return changeRequestService.getPendingRequests();
-  };
-
-  const getTodayRecords = (userId: string): TimeRecord[] => {
-    return timeRecordService.getTodayRecords(userId);
-  };
-
-  const getActiveRecord = (userId: string): TimeRecord | null => {
-    return timeRecordService.getActiveRecord(userId);
-  };
-
-  const hasActiveCheckIn = (userId: string): boolean => {
-    const activeRecord = getActiveRecord(userId);
-    return activeRecord !== null;
-  };
-
-  const checkIn = (userId: string, notes?: string): void => {
-    // Check if there is an active check-in without check-out
-    if (hasActiveCheckIn(userId)) {
-      toast.error("Existe um registro de entrada sem saída. Registre a saída antes de uma nova entrada.");
-      return;
+  const refetchTimeRecords = async () => {
+    setIsLoading(true);
+    try {
+      const records = await timeRecordService.getAllRecords();
+      setTimeRecords(records);
+    } catch (error) {
+      console.error("Error fetching time records:", error);
+      toast.error("Failed to load time records");
+    } finally {
+      setIsLoading(false);
     }
-
-    const newRecord = timeRecordService.checkIn(userId, notes);
-    
-    if (newRecord) {
-      setTimeRecords(prev => [...prev, newRecord]);
-      toast.success("Entrada registrada com sucesso!");
-    } else {
-      toast.error("Não foi possível registrar sua entrada.");
+  };
+  
+  const refetchChangeRequests = async () => {
+    setIsLoading(true);
+    try {
+      const requests = await changeRequestService.getPendingRequests();
+      setChangeRequests(requests);
+    } catch (error) {
+      console.error("Error fetching change requests:", error);
+      toast.error("Failed to load change requests");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const getUserRecords = async (userId: string): Promise<TimeRecord[]> => {
+    try {
+      return await timeRecordService.getUserRecords(userId);
+    } catch (error) {
+      console.error("Error in getUserRecords:", error);
+      return [];
     }
   };
 
-  const checkOut = (userId: string, recordId: string, notes?: string): void => {
-    const updatedRecord = timeRecordService.checkOut(userId, recordId, notes);
-    
-    if (!updatedRecord) {
-      toast.error("Não foi possível registrar sua saída.");
-      return;
+  const getPendingChangeRequests = async (): Promise<ChangeRequest[]> => {
+    try {
+      return await changeRequestService.getPendingRequests();
+    } catch (error) {
+      console.error("Error in getPendingChangeRequests:", error);
+      return [];
     }
-
-    setTimeRecords(prev =>
-      prev.map(r => r.id === recordId ? updatedRecord : r)
-    );
-
-    toast.success("Saída registrada com sucesso!");
   };
 
-  const createChangeRequest = (
+  const getTodayRecords = async (userId: string): Promise<TimeRecord[]> => {
+    try {
+      return await timeRecordService.getTodayRecords(userId);
+    } catch (error) {
+      console.error("Error in getTodayRecords:", error);
+      return [];
+    }
+  };
+
+  const getActiveRecord = async (userId: string): Promise<TimeRecord | null> => {
+    try {
+      return await timeRecordService.getActiveRecord(userId);
+    } catch (error) {
+      console.error("Error in getActiveRecord:", error);
+      return null;
+    }
+  };
+
+  const hasActiveCheckIn = async (userId: string): Promise<boolean> => {
+    try {
+      return await timeRecordService.hasActiveCheckIn(userId);
+    } catch (error) {
+      console.error("Error in hasActiveCheckIn:", error);
+      return false;
+    }
+  };
+
+  const checkIn = async (userId: string, notes?: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      // Check if there is an active check-in without check-out
+      const hasActive = await hasActiveCheckIn(userId);
+      if (hasActive) {
+        toast.error("Existe um registro de entrada sem saída. Registre a saída antes de uma nova entrada.");
+        return;
+      }
+
+      const newRecord = await timeRecordService.checkIn(userId, notes);
+      
+      if (newRecord) {
+        setTimeRecords(prev => [newRecord, ...prev]);
+        toast.success("Entrada registrada com sucesso!");
+        await refetchTimeRecords();
+      } else {
+        toast.error("Não foi possível registrar sua entrada.");
+      }
+    } catch (error) {
+      console.error("Error during check-in:", error);
+      toast.error("Erro ao registrar entrada.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const checkOut = async (userId: string, recordId: string, notes?: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const updatedRecord = await timeRecordService.checkOut(userId, recordId, notes);
+      
+      if (!updatedRecord) {
+        toast.error("Não foi possível registrar sua saída.");
+        return;
+      }
+
+      setTimeRecords(prev =>
+        prev.map(r => r.id === recordId ? updatedRecord : r)
+      );
+
+      toast.success("Saída registrada com sucesso!");
+      await refetchTimeRecords();
+    } catch (error) {
+      console.error("Error during check-out:", error);
+      toast.error("Erro ao registrar saída.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createChangeRequest = async (
     recordId: string,
     userId: string,
     userName: string,
     suggestedCheckIn: string,
     suggestedCheckOut: string | null,
     reason: string
-  ): void => {
-    const newRequest = changeRequestService.createChangeRequest(
-      recordId,
-      userId,
-      userName,
-      suggestedCheckIn,
-      suggestedCheckOut,
-      reason
-    );
-    
-    if (newRequest) {
-      setChangeRequests(prev => [...prev, newRequest]);
-      toast.success("Solicitação enviada para aprovação!");
-    } else {
-      toast.error("Não foi possível criar a solicitação.");
-    }
-  };
-
-  const approveChangeRequest = (requestId: string): void => {
-    const success = changeRequestService.approveChangeRequest(requestId);
-    
-    if (success) {
-      // Update local state
-      const updatedRequest = changeRequests.find(r => r.id === requestId);
-      if (updatedRequest) {
-        setChangeRequests(prev =>
-          prev.map(r => r.id === requestId ? { ...r, status: "approved" } : r)
-        );
-        
-        // Find and update the corresponding time record
-        const record = timeRecords.find(r => r.id === updatedRequest.recordId);
-        if (record) {
-          setTimeRecords(prev =>
-            prev.map(r => r.id === record.id ? {
-              ...r,
-              checkIn: updatedRequest.suggestedCheckIn,
-              checkOut: updatedRequest.suggestedCheckOut
-            } : r)
-          );
-        }
-      }
-      
-      toast.success("Solicitação aprovada com sucesso!");
-    } else {
-      toast.error("Não foi possível aprovar a solicitação.");
-    }
-  };
-
-  const rejectChangeRequest = (requestId: string): void => {
-    const success = changeRequestService.rejectChangeRequest(requestId);
-    
-    if (success) {
-      setChangeRequests(prev =>
-        prev.map(r => r.id === requestId ? { ...r, status: "rejected" } : r)
+  ): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const newRequest = await changeRequestService.createChangeRequest(
+        recordId,
+        userId,
+        userName,
+        suggestedCheckIn,
+        suggestedCheckOut,
+        reason
       );
       
-      toast.info("Solicitação rejeitada");
-    } else {
-      toast.error("Não foi possível rejeitar a solicitação.");
+      if (newRequest) {
+        setChangeRequests(prev => [newRequest, ...prev]);
+        toast.success("Solicitação enviada para aprovação!");
+        await refetchChangeRequests();
+      } else {
+        toast.error("Não foi possível criar a solicitação.");
+      }
+    } catch (error) {
+      console.error("Error creating change request:", error);
+      toast.error("Erro ao criar solicitação de alteração.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const approveChangeRequest = async (requestId: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const success = await changeRequestService.approveChangeRequest(requestId);
+      
+      if (success) {
+        // Update UI state
+        setChangeRequests(prev =>
+          prev.filter(r => r.id !== requestId)
+        );
+        
+        // Refresh data
+        await refetchTimeRecords();
+        await refetchChangeRequests();
+        toast.success("Solicitação aprovada com sucesso!");
+      } else {
+        toast.error("Não foi possível aprovar a solicitação.");
+      }
+    } catch (error) {
+      console.error("Error approving change request:", error);
+      toast.error("Erro ao aprovar solicitação.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const rejectChangeRequest = async (requestId: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const success = await changeRequestService.rejectChangeRequest(requestId);
+      
+      if (success) {
+        // Update UI state
+        setChangeRequests(prev =>
+          prev.filter(r => r.id !== requestId)
+        );
+        
+        await refetchChangeRequests();
+        toast.info("Solicitação rejeitada");
+      } else {
+        toast.error("Não foi possível rejeitar a solicitação.");
+      }
+    } catch (error) {
+      console.error("Error rejecting change request:", error);
+      toast.error("Erro ao rejeitar solicitação.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -188,6 +271,9 @@ export const TimeRecordsProvider: React.FC<{ children: ReactNode }> = ({ childre
         getTodayRecords,
         getActiveRecord,
         hasActiveCheckIn,
+        isLoading,
+        refetchTimeRecords,
+        refetchChangeRequests
       }}
     >
       {children}

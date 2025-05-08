@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTimeRecords } from "@/context/TimeRecordsContext";
 import { useAuth } from "@/context/AuthContext";
@@ -7,14 +7,33 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
+import { TimeRecord } from "@/types";
 
 const RecentRecords: React.FC = () => {
   const { currentUser } = useAuth();
   const { getUserRecords } = useTimeRecords();
+  const [records, setRecords] = useState<TimeRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadRecords = async () => {
+      if (currentUser) {
+        setIsLoading(true);
+        try {
+          const userRecords = await getUserRecords(currentUser.id);
+          setRecords(userRecords.slice(0, 4)); // Only get 4 most recent records
+        } catch (error) {
+          console.error("Error loading recent records:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadRecords();
+  }, [currentUser, getUserRecords]);
   
   if (!currentUser) return null;
-  
-  const records = getUserRecords(currentUser.id).slice(0, 4);
   
   return (
     <Card className="shadow-sm">
@@ -28,7 +47,11 @@ const RecentRecords: React.FC = () => {
         </Link>
       </CardHeader>
       <CardContent>
-        {records.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : records.length > 0 ? (
           <div className="space-y-4">
             {records.map((record) => (
               <div key={record.id} className="flex items-center justify-between py-2">

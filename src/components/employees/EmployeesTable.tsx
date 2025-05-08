@@ -1,14 +1,36 @@
 
-import React from "react";
-import { users } from "@/lib/mock-data";
+import React, { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { authService } from "@/services/api";
+import { User } from "@/types";
 
 const EmployeesTable: React.FC = () => {
   const { currentUser } = useAuth();
+  const [employees, setEmployees] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadEmployees = async () => {
+      if (currentUser && currentUser.role === 'admin') {
+        setIsLoading(true);
+        try {
+          const allUsers = await authService.getAllUsers();
+          // Filter out the current user
+          setEmployees(allUsers.filter(user => user.id !== currentUser.id));
+        } catch (error) {
+          console.error("Error loading employees:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadEmployees();
+  }, [currentUser]);
   
   if (!currentUser || currentUser.role !== "admin") {
     return (
@@ -20,8 +42,13 @@ const EmployeesTable: React.FC = () => {
     );
   }
 
-  // Filter out the current user
-  const employees = users.filter(user => user.id !== currentUser.id);
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   
   return (
     <div className="rounded-md border">
@@ -53,6 +80,13 @@ const EmployeesTable: React.FC = () => {
               </TableCell>
             </TableRow>
           ))}
+          {employees.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={3} className="text-center py-8">
+                Nenhum funcionário encontrado
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </div>

@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useTimeRecords } from "@/context/TimeRecordsContext";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
@@ -7,17 +7,36 @@ import { formatDate } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ChangeRequest } from "@/types";
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const ApprovalsTable: React.FC = () => {
   const { currentUser } = useAuth();
-  const { getPendingChangeRequests, approveChangeRequest, rejectChangeRequest } = useTimeRecords();
+  const { getPendingChangeRequests, approveChangeRequest, rejectChangeRequest, isLoading } = useTimeRecords();
+  const [pendingRequests, setPendingRequests] = useState<ChangeRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ChangeRequest | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+
+  useEffect(() => {
+    const loadRequests = async () => {
+      if (currentUser && currentUser.role === 'admin') {
+        setIsLoadingRequests(true);
+        try {
+          const requests = await getPendingChangeRequests();
+          setPendingRequests(requests);
+        } catch (error) {
+          console.error("Error loading change requests:", error);
+        } finally {
+          setIsLoadingRequests(false);
+        }
+      }
+    };
+    
+    loadRequests();
+  }, [currentUser, getPendingChangeRequests]);
 
   if (!currentUser || currentUser.role !== "admin") {
     return (
@@ -28,21 +47,35 @@ const ApprovalsTable: React.FC = () => {
       </Alert>
     );
   }
-  
-  const pendingRequests = getPendingChangeRequests();
 
-  const handleApprove = (requestId: string) => {
-    approveChangeRequest(requestId);
+  const handleApprove = async (requestId: string) => {
+    await approveChangeRequest(requestId);
+    
+    // Refresh the list
+    const updatedRequests = await getPendingChangeRequests();
+    setPendingRequests(updatedRequests);
   };
 
-  const handleReject = (requestId: string) => {
-    rejectChangeRequest(requestId);
+  const handleReject = async (requestId: string) => {
+    await rejectChangeRequest(requestId);
+    
+    // Refresh the list
+    const updatedRequests = await getPendingChangeRequests();
+    setPendingRequests(updatedRequests);
   };
 
   const handleViewDetails = (request: ChangeRequest) => {
     setSelectedRequest(request);
     setIsDetailsDialogOpen(true);
   };
+
+  if (isLoadingRequests) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (pendingRequests.length === 0) {
     return (
@@ -118,6 +151,7 @@ const ApprovalsTable: React.FC = () => {
                     size="sm"
                     className="bg-success hover:bg-success/90 text-white"
                     onClick={() => handleApprove(request.id)}
+                    disabled={isLoading}
                   >
                     <Check className="h-4 w-4 mr-1" /> Aprovar
                   </Button>
@@ -125,6 +159,7 @@ const ApprovalsTable: React.FC = () => {
                     variant="destructive"
                     size="sm"
                     onClick={() => handleReject(request.id)}
+                    disabled={isLoading}
                   >
                     <X className="h-4 w-4 mr-1" /> Rejeitar
                   </Button>
@@ -191,23 +226,31 @@ const ApprovalsTable: React.FC = () => {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
+              onClick={async () => {
                 if (selectedRequest) {
-                  rejectChangeRequest(selectedRequest.id);
+                  await rejectChangeRequest(selectedRequest.id);
                   setIsDetailsDialogOpen(false);
+                  // Refresh the list
+                  const updatedRequests = await getPendingChangeRequests();
+                  setPendingRequests(updatedRequests);
                 }
               }}
+              disabled={isLoading}
             >
               <X className="h-4 w-4 mr-1" /> Rejeitar
             </Button>
             <Button
               className="bg-success hover:bg-success/90 text-white"
-              onClick={() => {
+              onClick={async () => {
                 if (selectedRequest) {
-                  approveChangeRequest(selectedRequest.id);
+                  await approveChangeRequest(selectedRequest.id);
                   setIsDetailsDialogOpen(false);
+                  // Refresh the list
+                  const updatedRequests = await getPendingChangeRequests();
+                  setPendingRequests(updatedRequests);
                 }
               }}
+              disabled={isLoading}
             >
               <Check className="h-4 w-4 mr-1" /> Aprovar
             </Button>

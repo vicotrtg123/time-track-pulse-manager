@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTimeRecords } from "@/context/TimeRecordsContext";
 import { useAuth } from "@/context/AuthContext";
 import { TimeRecord } from "@/types";
@@ -14,17 +14,35 @@ import { Label } from "@/components/ui/label";
 
 const TimeRecordsTable: React.FC = () => {
   const { currentUser } = useAuth();
-  const { getUserRecords, createChangeRequest } = useTimeRecords();
+  const { getUserRecords, createChangeRequest, isLoading } = useTimeRecords();
+  const [records, setRecords] = useState<TimeRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TimeRecord | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [suggestedCheckIn, setSuggestedCheckIn] = useState("");
   const [suggestedCheckOut, setSuggestedCheckOut] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  
+  useEffect(() => {
+    const loadRecords = async () => {
+      if (currentUser) {
+        setIsLoadingRecords(true);
+        try {
+          const userRecords = await getUserRecords(currentUser.id);
+          setRecords(userRecords);
+        } catch (error) {
+          console.error("Error loading user records:", error);
+        } finally {
+          setIsLoadingRecords(false);
+        }
+      }
+    };
+    
+    loadRecords();
+  }, [currentUser, getUserRecords]);
   
   if (!currentUser) return null;
-  
-  const records = getUserRecords(currentUser.id);
   
   const handleViewRecord = (record: TimeRecord) => {
     setSelectedRecord(record);
@@ -39,10 +57,10 @@ const TimeRecordsTable: React.FC = () => {
     setIsEditDialogOpen(true);
   };
   
-  const handleSubmitChange = () => {
+  const handleSubmitChange = async () => {
     if (!currentUser || !selectedRecord || !reason) return;
     
-    createChangeRequest(
+    await createChangeRequest(
       selectedRecord.id,
       currentUser.id,
       currentUser.name,
@@ -52,6 +70,10 @@ const TimeRecordsTable: React.FC = () => {
     );
     
     setIsEditDialogOpen(false);
+    
+    // Refresh records after creating a change request
+    const userRecords = await getUserRecords(currentUser.id);
+    setRecords(userRecords);
   };
   
   const canEditRecord = (record: TimeRecord) => {
@@ -59,65 +81,62 @@ const TimeRecordsTable: React.FC = () => {
     return record.checkOut !== null;
   };
 
-  // Group records by date for better display
-  const recordsByDate: Record<string, TimeRecord[]> = {};
-  records.forEach(record => {
-    if (!recordsByDate[record.date]) {
-      recordsByDate[record.date] = [];
-    }
-    recordsByDate[record.date].push(record);
-  });
-  
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Entrada</TableHead>
-              <TableHead>Saída</TableHead>
-              <TableHead>Observações</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.length > 0 ? (
-              records.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell>{formatDate(record.date)}</TableCell>
-                  <TableCell>{record.checkIn}</TableCell>
-                  <TableCell>{record.checkOut || "—"}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{record.notes || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleViewRecord(record)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={!canEditRecord(record)}
-                      onClick={() => handleEditRecord(record)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+      {isLoadingRecords ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Entrada</TableHead>
+                <TableHead>Saída</TableHead>
+                <TableHead>Observações</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {records.length > 0 ? (
+                records.map((record) => (
+                  <TableRow key={record.id}>
+                    <TableCell>{formatDate(record.date)}</TableCell>
+                    <TableCell>{record.checkIn}</TableCell>
+                    <TableCell>{record.checkOut || "—"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{record.notes || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleViewRecord(record)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={!canEditRecord(record)}
+                        onClick={() => handleEditRecord(record)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    Nenhum registro encontrado
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  Nenhum registro encontrado
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -233,8 +252,13 @@ const TimeRecordsTable: React.FC = () => {
             </div>
           )}
           <DialogFooter>
-            <Button type="button" onClick={handleSubmitChange} disabled={!reason}>
-              Enviar solicitação
+            <Button type="button" onClick={handleSubmitChange} disabled={!reason || isLoading}>
+              {isLoading ? (
+                <span className="flex items-center">
+                  <span className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></span>
+                  Processando...
+                </span>
+              ) : "Enviar solicitação"}
             </Button>
           </DialogFooter>
         </DialogContent>

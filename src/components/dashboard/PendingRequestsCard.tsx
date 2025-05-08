@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTimeRecords } from "@/context/TimeRecordsContext";
 import { formatDate } from "@/lib/utils";
@@ -8,14 +8,33 @@ import { ClipboardList } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import { ChangeRequest } from "@/types";
 
 const PendingRequestsCard: React.FC = () => {
   const { currentUser } = useAuth();
   const { getPendingChangeRequests } = useTimeRecords();
+  const [pendingRequests, setPendingRequests] = useState<ChangeRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadRequests = async () => {
+      if (currentUser && currentUser.role === 'admin') {
+        setIsLoading(true);
+        try {
+          const requests = await getPendingChangeRequests();
+          setPendingRequests(requests.slice(0, 3)); // Only get 3 most recent requests
+        } catch (error) {
+          console.error("Error loading pending requests:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadRequests();
+  }, [currentUser, getPendingChangeRequests]);
   
   if (!currentUser || currentUser.role !== "admin") return null;
-  
-  const pendingRequests = getPendingChangeRequests().slice(0, 3);
   
   return (
     <Card className="shadow-sm">
@@ -36,7 +55,11 @@ const PendingRequestsCard: React.FC = () => {
         </Link>
       </CardHeader>
       <CardContent>
-        {pendingRequests.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : pendingRequests.length > 0 ? (
           <div className="space-y-4">
             {pendingRequests.map((request) => (
               <div key={request.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-2 gap-2">
