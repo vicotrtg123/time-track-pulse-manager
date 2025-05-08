@@ -22,7 +22,7 @@ const LoginForm: React.FC = () => {
     return email.includes('@') && email.includes('.');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     
@@ -33,15 +33,19 @@ const LoginForm: React.FC = () => {
     
     setIsLoading(true);
     
-    setTimeout(() => {
-      const success = login(email, password);
+    try {
+      const success = await login(email, password);
       if (success) {
         navigate("/dashboard");
       } else {
         setError("Credenciais inválidas. Por favor, verifique e tente novamente.");
       }
+    } catch (error) {
+      setError("Ocorreu um erro durante o login. Tente novamente.");
+      console.error("Erro ao fazer login:", error);
+    } finally {
       setIsLoading(false);
-    }, 1000); // Simulate network delay
+    }
   };
 
   return (
@@ -77,7 +81,7 @@ const LoginForm: React.FC = () => {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Exemplos: dsv4@bremen.com.br (Admin) ou victor@hotmail.com (Funcionário)
+                Exemplo: dsv4@bremen.com.br (Admin, senha: 123)
               </p>
             </div>
             <div className="space-y-2">
@@ -96,7 +100,7 @@ const LoginForm: React.FC = () => {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Admin: 12345678 | Funcionário: 123
+                Para o administrador Bremen: 123
               </p>
             </div>
           </CardContent>

@@ -1,4 +1,3 @@
-
 import { User, TimeRecord, ChangeRequest } from "@/types";
 import { getCurrentDate, getCurrentTime } from "@/lib/utils";
 
@@ -10,6 +9,7 @@ export const users: User[] = [
     email: "admin@example.com",
     role: "admin",
     avatar: "https://i.pravatar.cc/150?img=1",
+    active: true
   },
   {
     id: "2",
@@ -17,6 +17,7 @@ export const users: User[] = [
     email: "joao@example.com",
     role: "employee",
     avatar: "https://i.pravatar.cc/150?img=2",
+    active: true
   },
   {
     id: "3",
@@ -24,6 +25,7 @@ export const users: User[] = [
     email: "maria@example.com",
     role: "employee",
     avatar: "https://i.pravatar.cc/150?img=3",
+    active: true
   },
   {
     id: "4",
@@ -31,6 +33,7 @@ export const users: User[] = [
     email: "dsv4@bremen.com.br",
     role: "admin",
     avatar: "https://i.pravatar.cc/150?img=4",
+    active: true
   },
   {
     id: "5",
@@ -38,6 +41,7 @@ export const users: User[] = [
     email: "victor@hotmail.com",
     role: "employee",
     avatar: "https://i.pravatar.cc/150?img=5",
+    active: true
   },
 ];
 
