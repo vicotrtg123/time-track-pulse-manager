@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import TimeRecords from "@/pages/TimeRecords";
 import Approvals from "@/pages/Approvals";
 import Employees from "@/pages/Employees";
+import TimeHistory from "@/pages/TimeHistory";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/time-records" element={<TimeRecords />} />
               <Route path="/approvals" element={<Approvals />} />
               <Route path="/employees" element={<Employees />} />
+              <Route path="/time-history" element={<TimeHistory />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

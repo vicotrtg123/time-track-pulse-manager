@@ -10,7 +10,8 @@ import {
   X, 
   PanelLeftOpen,
   PanelLeftClose,
-  Users
+  Users,
+  History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,8 +35,12 @@ const Sidebar = () => {
   useEffect(() => {
     const fetchPendingRequests = async () => {
       if (isAdmin) {
-        const pendingRequests = await getPendingChangeRequests();
-        setPendingCount(pendingRequests.length);
+        try {
+          const pendingRequests = await getPendingChangeRequests();
+          setPendingCount(pendingRequests.length);
+        } catch (error) {
+          console.error("Error fetching pending requests:", error);
+        }
       }
     };
     
@@ -70,6 +75,11 @@ const Sidebar = () => {
             name: "Funcionários", 
             href: "/employees", 
             icon: <Users className="h-5 w-5" /> 
+          },
+          { 
+            name: "Histórico de Pontos", 
+            href: "/time-history", 
+            icon: <History className="h-5 w-5" /> 
           },
         ]
       : []),

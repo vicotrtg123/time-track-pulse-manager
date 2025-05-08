@@ -5,16 +5,23 @@ import { useAuth } from "@/context/AuthContext";
 import { TimeRecord } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Edit, Eye } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { timeRecordService } from "@/services/api";
+import { toast } from "sonner";
 
-const TimeRecordsTable: React.FC = () => {
+interface TimeRecordsTableProps {
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const TimeRecordsTable: React.FC<TimeRecordsTableProps> = ({ startDate, endDate }) => {
   const { currentUser } = useAuth();
-  const { getUserRecords, createChangeRequest, isLoading } = useTimeRecords();
+  const { createChangeRequest } = useTimeRecords();
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TimeRecord | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -24,23 +31,39 @@ const TimeRecordsTable: React.FC = () => {
   const [reason, setReason] = useState("");
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   
-  useEffect(() => {
-    const loadRecords = async () => {
-      if (currentUser) {
-        setIsLoadingRecords(true);
-        try {
-          const userRecords = await getUserRecords(currentUser.id);
-          setRecords(userRecords);
-        } catch (error) {
-          console.error("Error loading user records:", error);
-        } finally {
-          setIsLoadingRecords(false);
-        }
-      }
-    };
+  // Function to load records with date filtering
+  const loadRecords = async () => {
+    if (!currentUser) return;
     
+    setIsLoadingRecords(true);
+    try {
+      let userRecords: TimeRecord[] = [];
+      
+      if (startDate && endDate) {
+        const formattedStartDate = format(startDate, "yyyy-MM-dd");
+        const formattedEndDate = format(endDate, "yyyy-MM-dd");
+        userRecords = await timeRecordService.getUserRecordsBetweenDates(
+          currentUser.id, 
+          formattedStartDate, 
+          formattedEndDate
+        );
+      } else {
+        userRecords = await timeRecordService.getUserRecords(currentUser.id);
+      }
+      
+      setRecords(userRecords);
+    } catch (error) {
+      console.error("Error loading user records:", error);
+      toast.error("Erro ao carregar registros de ponto");
+    } finally {
+      setIsLoadingRecords(false);
+    }
+  };
+  
+  // Load records when dependencies change
+  useEffect(() => {
     loadRecords();
-  }, [currentUser, getUserRecords]);
+  }, [currentUser, startDate, endDate]);
   
   if (!currentUser) return null;
   
@@ -60,25 +83,33 @@ const TimeRecordsTable: React.FC = () => {
   const handleSubmitChange = async () => {
     if (!currentUser || !selectedRecord || !reason) return;
     
-    await createChangeRequest(
-      selectedRecord.id,
-      currentUser.id,
-      currentUser.name,
-      suggestedCheckIn,
-      suggestedCheckOut || null,
-      reason
-    );
-    
-    setIsEditDialogOpen(false);
-    
-    // Refresh records after creating a change request
-    const userRecords = await getUserRecords(currentUser.id);
-    setRecords(userRecords);
+    try {
+      await createChangeRequest(
+        selectedRecord.id,
+        currentUser.id,
+        currentUser.name,
+        suggestedCheckIn,
+        suggestedCheckOut || null,
+        reason
+      );
+      
+      setIsEditDialogOpen(false);
+      
+      // Refresh records after creating a change request
+      await loadRecords();
+    } catch (error) {
+      console.error("Error creating change request:", error);
+      toast.error("Erro ao criar solicitação de alteração");
+    }
   };
   
   const canEditRecord = (record: TimeRecord) => {
     // Only allow editing records that have both check in and check out times
     return record.checkOut !== null;
+  };
+
+  const formatDate = (dateString: string) => {
+    return format(new Date(dateString), "dd/MM/yyyy");
   };
 
   return (
@@ -252,13 +283,8 @@ const TimeRecordsTable: React.FC = () => {
             </div>
           )}
           <DialogFooter>
-            <Button type="button" onClick={handleSubmitChange} disabled={!reason || isLoading}>
-              {isLoading ? (
-                <span className="flex items-center">
-                  <span className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></span>
-                  Processando...
-                </span>
-              ) : "Enviar solicitação"}
+            <Button type="button" onClick={handleSubmitChange} disabled={!reason}>
+              Enviar solicitação
             </Button>
           </DialogFooter>
         </DialogContent>

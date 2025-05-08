@@ -11,7 +11,8 @@ const transformUser = (dbUser: any): User => {
     name: dbUser.name,
     email: dbUser.email,
     role: dbUser.role as "admin" | "employee",
-    avatar: dbUser.avatar
+    avatar: dbUser.avatar,
+    active: dbUser.active !== false, // Default to true if active is not explicitly false
   };
 };
 
@@ -53,6 +54,7 @@ export const authService = {
         .from('users')
         .select('*')
         .eq('email', email)
+        .eq('active', true)
         .single();
       
       if (error) {
@@ -91,7 +93,8 @@ export const authService = {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*');
+        .select('*')
+        .order('name');
       
       if (error) {
         console.error("Error fetching users:", error);
@@ -102,6 +105,50 @@ export const authService = {
     } catch (error) {
       console.error("Error fetching all users:", error);
       return [];
+    }
+  },
+  
+  createUser: async (name: string, email: string, role: string): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          name,
+          email,
+          role,
+          active: true
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Error creating user:", error);
+        throw error;
+      }
+      
+      return transformUser(data);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      throw error;
+    }
+  },
+  
+  disableUser: async (userId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ active: false })
+        .eq('id', userId);
+      
+      if (error) {
+        console.error("Error disabling user:", error);
+        throw error;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error disabling user:", error);
+      throw error;
     }
   }
 };
@@ -128,6 +175,29 @@ export const timeRecordService = {
       return [];
     }
   },
+  
+  // Get records between dates (for all users - admin only)
+  getAllRecordsBetweenDates: async (startDate: string, endDate: string): Promise<TimeRecord[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching time records by date range:", error);
+        return [];
+      }
+      
+      return data.map(transformTimeRecord);
+    } catch (error) {
+      console.error("Error fetching records by date range:", error);
+      return [];
+    }
+  },
 
   // Get records for a specific user
   getUserRecords: async (userId: string): Promise<TimeRecord[]> => {
@@ -147,6 +217,30 @@ export const timeRecordService = {
       return data.map(transformTimeRecord);
     } catch (error) {
       console.error("Error fetching user records:", error);
+      return [];
+    }
+  },
+  
+  // Get user records between dates
+  getUserRecordsBetweenDates: async (userId: string, startDate: string, endDate: string): Promise<TimeRecord[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching user time records by date range:", error);
+        return [];
+      }
+      
+      return data.map(transformTimeRecord);
+    } catch (error) {
+      console.error("Error fetching user records by date range:", error);
       return [];
     }
   },
