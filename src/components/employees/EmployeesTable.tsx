@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { authService } from "@/services/api";
+import { authService } from "@/services";
 import { User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { UserMinus } from "lucide-react";

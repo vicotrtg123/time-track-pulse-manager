@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from "react";
 import { TimeRecord, ChangeRequest } from "@/types";
 import { useAuth } from "./AuthContext";
-import { timeRecordService, changeRequestService } from "@/services/api";
+import { timeRecordService, changeRequestService } from "@/services";
 import { toast } from "sonner";
 
 interface TimeRecordsContextType {

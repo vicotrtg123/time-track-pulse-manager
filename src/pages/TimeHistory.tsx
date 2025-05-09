@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { TimeRecord, User } from "@/types";
-import { timeRecordService, authService } from "@/services/api";
+import { timeRecordService, authService } from "@/services";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

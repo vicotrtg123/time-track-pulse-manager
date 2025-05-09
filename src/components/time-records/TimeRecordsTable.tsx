@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { timeRecordService } from "@/services/api";
+import { timeRecordService } from "@/services";
 import { toast } from "sonner";
 
 interface TimeRecordsTableProps {

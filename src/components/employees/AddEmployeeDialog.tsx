@@ -17,7 +17,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
-import { authService } from "@/services/api";
+import { authService } from "@/services";
 import { useAuth } from "@/context/AuthContext";
 
 interface AddEmployeeDialogProps {
