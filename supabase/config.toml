@@ -1,1 +1,57 @@
+
+# A string used to distinguish different Supabase projects on the same host. Defaults to the
+# working directory name when running `supabase init`.
 project_id = "vbthggsqpdupfrwdhpvy"
+
+[api]
+enabled = true
+# Port to use for the API URL.
+port = 54321
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. public and storage are always included.
+schemas = ["public", "storage"]
+# Extra schemas to add to the search_path of every request. public is always included.
+extra_search_path = ["public", "extensions"]
+# Maximum rows to return when listing and maximum number of rows to upsert or delete when
+# changing data.
+max_rows = 1000
+
+[db]
+# Port to use for the local database URL.
+port = 54322
+# Port used by db diff command to initialize the shadow database.
+shadow_port = 54320
+# The database major version to use. This has to be the same as your remote database's. Run `SHOW
+# server_version;` on the remote database to check.
+major_version = 15
+
+[db.pooler]
+enabled = false
+# Port to use for the local connection pooler.
+port = 54329
+# Maximum number of connections to keep open per database. 0 = unlimited.
+pool_mode = "transaction"
+# Default pool size i.e. number of connections to use per database. 0 = unlimited.
+default_pool_size = 15
+# Maximum number of connections to keep open per user. 0 = unlimited.
+max_client_conn = 100
+
+[realtime]
+enabled = true
+# behaviours: NOTIFY_ALL, NOTIFY_SELF, BLOCK_ALL
+default_behaviour = "NOTIFY_ALL"
+
+[studio]
+enabled = true
+# Port to use for Supabase Studio.
+port = 54323
+# External URL to use as the base URL for API URL, Database URL, or JWT issuer URL. For local
+# development, this would typically be http://localhost:[port], but for live environments, it would
+# be the URL where the Studio is being served.
+api_url = "http://127.0.0.1:54321"
+# Secrets and environment variables used by Studio and API server during local development.
+# The secrets.env file is automatically generated when running `supabase start` for the first time.
+# It's gitignored by default, so you'll need to manually share this file with your team if needed.
+
+[functions.create-admin]
+verify_jwt = false

@@ -13,32 +13,41 @@ import Approvals from "@/pages/Approvals";
 import Employees from "@/pages/Employees";
 import TimeHistory from "@/pages/TimeHistory";
 import NotFound from "@/pages/NotFound";
+import { useEffect } from "react";
+import { createAdminUser } from "@/lib/create-admin-user";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <TimeRecordsProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Navigate to="/login" replace />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/time-records" element={<TimeRecords />} />
-              <Route path="/approvals" element={<Approvals />} />
-              <Route path="/employees" element={<Employees />} />
-              <Route path="/time-history" element={<TimeHistory />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TimeRecordsProvider>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Create admin user when the app starts
+  useEffect(() => {
+    createAdminUser();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <TimeRecordsProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/time-records" element={<TimeRecords />} />
+                <Route path="/approvals" element={<Approvals />} />
+                <Route path="/employees" element={<Employees />} />
+                <Route path="/time-history" element={<TimeHistory />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TimeRecordsProvider>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
