@@ -1,285 +1,177 @@
 
 import React, { useState, useEffect } from "react";
-import { useTimeRecords } from "@/context/TimeRecordsContext";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
-import { formatDate } from "@/lib/utils";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { changeRequestService } from "@/services";
 import { ChangeRequest } from "@/types";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 const ApprovalsTable: React.FC = () => {
-  const { currentUser } = useAuth();
-  const { getPendingChangeRequests, approveChangeRequest, rejectChangeRequest, isLoading } = useTimeRecords();
   const [pendingRequests, setPendingRequests] = useState<ChangeRequest[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<ChangeRequest | null>(null);
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
+
+  const fetchPendingRequests = async () => {
+    setIsLoading(true);
+    try {
+      const requests = await changeRequestService.getPendingRequests();
+      setPendingRequests(requests);
+    } catch (error) {
+      console.error("Error fetching pending requests:", error);
+      toast.error("Erro ao carregar solicitações pendentes");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadRequests = async () => {
-      if (currentUser && currentUser.role === 'admin') {
-        setIsLoadingRequests(true);
-        try {
-          const requests = await getPendingChangeRequests();
-          setPendingRequests(requests);
-        } catch (error) {
-          console.error("Error loading change requests:", error);
-        } finally {
-          setIsLoadingRequests(false);
-        }
-      }
-    };
-    
-    loadRequests();
-  }, [currentUser, getPendingChangeRequests]);
-
-  if (!currentUser || currentUser.role !== "admin") {
-    return (
-      <Alert>
-        <AlertDescription>
-          Você não tem permissão para acessar esta página.
-        </AlertDescription>
-      </Alert>
-    );
-  }
+    fetchPendingRequests();
+  }, []);
 
   const handleApprove = async (requestId: string) => {
-    await approveChangeRequest(requestId);
-    
-    // Refresh the list
-    const updatedRequests = await getPendingChangeRequests();
-    setPendingRequests(updatedRequests);
+    setProcessingIds(prev => [...prev, requestId]);
+    try {
+      const success = await changeRequestService.approveChangeRequest(requestId);
+      if (success) {
+        toast.success("Solicitação aprovada com sucesso");
+        // Remove the approved request from the list
+        setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      } else {
+        toast.error("Erro ao aprovar solicitação");
+      }
+    } catch (error) {
+      console.error("Error approving request:", error);
+      toast.error("Erro ao aprovar solicitação");
+    } finally {
+      setProcessingIds(prev => prev.filter(id => id !== requestId));
+    }
   };
 
   const handleReject = async (requestId: string) => {
-    await rejectChangeRequest(requestId);
-    
-    // Refresh the list
-    const updatedRequests = await getPendingChangeRequests();
-    setPendingRequests(updatedRequests);
+    setProcessingIds(prev => [...prev, requestId]);
+    try {
+      const success = await changeRequestService.rejectChangeRequest(requestId);
+      if (success) {
+        toast.success("Solicitação rejeitada com sucesso");
+        // Remove the rejected request from the list
+        setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      } else {
+        toast.error("Erro ao rejeitar solicitação");
+      }
+    } catch (error) {
+      console.error("Error rejecting request:", error);
+      toast.error("Erro ao rejeitar solicitação");
+    } finally {
+      setProcessingIds(prev => prev.filter(id => id !== requestId));
+    }
   };
 
-  const handleViewDetails = (request: ChangeRequest) => {
-    setSelectedRequest(request);
-    setIsDetailsDialogOpen(true);
+  const formatTime = (timeString: string) => {
+    return timeString || "--:--";
   };
 
-  if (isLoadingRequests) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (pendingRequests.length === 0) {
-    return (
-      <Card className="bg-muted/50">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <ClipboardEmptyIcon className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Nenhuma solicitação pendente</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Todas as solicitações de alteração foram processadas.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const formatDate = (dateString: string) => {
+    try {
+      // Parse date string format (assuming YYYY-MM-DD)
+      const date = new Date(dateString);
+      return format(date, "dd/MM/yyyy");
+    } catch {
+      return dateString;
+    }
+  };
 
   return (
-    <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Funcionário</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Alteração</TableHead>
-              <TableHead>Justificativa</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pendingRequests.map((request) => (
-              <TableRow key={request.id}>
-                <TableCell>{request.userName}</TableCell>
-                <TableCell>{formatDate(request.date)}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <div className="flex items-center">
-                      <Badge variant="outline" className="mr-2">
-                        Entrada
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {request.originalCheckIn} →
-                      </span>
-                      <span className="font-medium ml-1">{request.suggestedCheckIn}</span>
-                    </div>
-                    {request.originalCheckOut && (
-                      <div className="flex items-center mt-1">
-                        <Badge variant="outline" className="mr-2">
-                          Saída
-                        </Badge>
-                        <span className="text-muted-foreground">
-                          {request.originalCheckOut} →
-                        </span>
-                        <span className="font-medium ml-1">{request.suggestedCheckOut}</span>
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[200px]">
-                  <div className="truncate">{request.reason}</div>
-                </TableCell>
-                <TableCell className="space-x-1 text-right">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleViewDetails(request)}
-                  >
-                    Detalhes
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="bg-success hover:bg-success/90 text-white"
-                    onClick={() => handleApprove(request.id)}
-                    disabled={isLoading}
-                  >
-                    <Check className="h-4 w-4 mr-1" /> Aprovar
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleReject(request.id)}
-                    disabled={isLoading}
-                  >
-                    <X className="h-4 w-4 mr-1" /> Rejeitar
-                  </Button>
-                </TableCell>
+    <div className="space-y-4">
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      ) : pendingRequests.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Não há solicitações pendentes.</p>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Funcionário</TableHead>
+                <TableHead>Data</TableHead>
+                <TableHead>Ponto Original</TableHead>
+                <TableHead>Solicitação</TableHead>
+                <TableHead>Justificativa</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Details Dialog */}
-      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Detalhes da solicitação</DialogTitle>
-            <DialogDescription>
-              Solicitado por {selectedRequest?.userName} em {selectedRequest && formatDate(selectedRequest.date)}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedRequest && (
-            <div className="space-y-6 py-4">
-              <div className="space-y-1">
-                <h4 className="text-sm font-medium">Registro Original</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-muted p-2 rounded-md">
-                    <span className="text-xs text-muted-foreground">Entrada:</span>
-                    <div className="font-medium">{selectedRequest.originalCheckIn}</div>
-                  </div>
-                  <div className="bg-muted p-2 rounded-md">
-                    <span className="text-xs text-muted-foreground">Saída:</span>
-                    <div className="font-medium">{selectedRequest.originalCheckOut || "—"}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="text-sm font-medium">Solicitação de Alteração</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-primary/5 border border-primary/10 p-2 rounded-md">
-                    <span className="text-xs text-muted-foreground">Nova entrada:</span>
-                    <div className="font-medium">{selectedRequest.suggestedCheckIn}</div>
-                  </div>
-                  <div className="bg-primary/5 border border-primary/10 p-2 rounded-md">
-                    <span className="text-xs text-muted-foreground">Nova saída:</span>
-                    <div className="font-medium">{selectedRequest.suggestedCheckOut || "—"}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <h4 className="text-sm font-medium">Justificativa</h4>
-                <div className="bg-muted p-3 rounded-md">
-                  <p>{selectedRequest.reason}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="space-x-2">
-            <Button
-              variant="outline" 
-              onClick={() => setIsDetailsDialogOpen(false)}
-            >
-              Fechar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (selectedRequest) {
-                  await rejectChangeRequest(selectedRequest.id);
-                  setIsDetailsDialogOpen(false);
-                  // Refresh the list
-                  const updatedRequests = await getPendingChangeRequests();
-                  setPendingRequests(updatedRequests);
-                }
-              }}
-              disabled={isLoading}
-            >
-              <X className="h-4 w-4 mr-1" /> Rejeitar
-            </Button>
-            <Button
-              className="bg-success hover:bg-success/90 text-white"
-              onClick={async () => {
-                if (selectedRequest) {
-                  await approveChangeRequest(selectedRequest.id);
-                  setIsDetailsDialogOpen(false);
-                  // Refresh the list
-                  const updatedRequests = await getPendingChangeRequests();
-                  setPendingRequests(updatedRequests);
-                }
-              }}
-              disabled={isLoading}
-            >
-              <Check className="h-4 w-4 mr-1" /> Aprovar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            </TableHeader>
+            <TableBody>
+              {pendingRequests.map((request) => (
+                <TableRow key={request.id}>
+                  <TableCell>
+                    <div className="flex items-center font-medium">
+                      <Avatar className="mr-2 h-8 w-8">
+                        <AvatarFallback>{request.userName.charAt(0).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      {request.userName}
+                    </div>
+                  </TableCell>
+                  <TableCell>{formatDate(request.date)}</TableCell>
+                  <TableCell>
+                    <div>
+                      <Badge variant="outline">Entrada: {formatTime(request.originalCheckIn)}</Badge>
+                      {request.originalCheckOut && (
+                        <Badge variant="outline" className="ml-2">Saída: {formatTime(request.originalCheckOut)}</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <Badge>Entrada: {formatTime(request.suggestedCheckIn)}</Badge>
+                      {request.suggestedCheckOut && (
+                        <Badge className="ml-2">Saída: {formatTime(request.suggestedCheckOut)}</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[200px]">
+                    <p className="truncate" title={request.reason}>
+                      {request.reason}
+                    </p>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-green-600"
+                        onClick={() => handleApprove(request.id)}
+                        disabled={processingIds.includes(request.id)}
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Aprovar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-red-600"
+                        onClick={() => handleReject(request.id)}
+                        disabled={processingIds.includes(request.id)}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Rejeitar
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
   );
 };
-
-// Simple icon for empty state
-const ClipboardEmptyIcon = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-    <path d="M12 11h4" />
-    <path d="M12 16h4" />
-    <path d="M8 11h.01" />
-    <path d="M8 16h.01" />
-  </svg>
-);
 
 export default ApprovalsTable;

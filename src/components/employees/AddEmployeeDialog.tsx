@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { toast } from "sonner";
 import { authService } from "@/services";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AddEmployeeDialogProps {
   open: boolean;
@@ -31,6 +33,9 @@ const formSchema = z.object({
   email: z.string().email({
     message: "Insira um email válido.",
   }),
+  password: z.string().min(6, {
+    message: "A senha deve conter pelo menos 6 caracteres."
+  }),
   role: z.enum(["admin", "employee"]).default("employee"),
 });
 
@@ -41,13 +46,37 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
     defaultValues: {
       name: "",
       email: "",
+      password: "",
       role: "employee",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      // First create the Supabase auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          data: {
+            name: values.name,
+            role: values.role,
+          }
+        }
+      });
+      
+      if (authError) {
+        throw authError;
+      }
+      
+      if (!authData.user) {
+        toast.error("Erro ao criar usuário.");
+        return;
+      }
+
+      // Then create the user in our mock service
       const newEmployee = await authService.createUser(values.name, values.email, values.role);
+
       if (newEmployee) {
         toast.success("Funcionário adicionado com sucesso!");
         onOpenChange(false);
@@ -64,7 +93,7 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
       }
     } catch (error) {
       console.error("Error creating employee:", error);
-      toast.error("Erro ao adicionar funcionário.");
+      toast.error("Erro ao adicionar funcionário. O email pode já estar em uso.");
     }
   }
 
@@ -100,6 +129,19 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input placeholder="email@example.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Senha</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
