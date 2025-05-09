@@ -1,19 +1,12 @@
-
 import React from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter 
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useForm } from "react-hook-form";
+import { User, UserRole } from "@/types";
 import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
@@ -23,20 +16,27 @@ import { useAuth } from "@/context/AuthContext";
 interface AddEmployeeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onEmployeeAdded?: (newEmployee: User) => void;
 }
 
+const roleOptions = [
+  { label: "Admin", value: "admin" },
+  { label: "Employee", value: "employee" },
+];
+
 const formSchema = z.object({
-  name: z.string().min(3, { message: "Nome deve ter pelo menos 3 caracteres" }),
-  email: z.string().email({ message: "Email inválido" }),
-  role: z.enum(["admin", "employee"], {
-    required_error: "Selecione uma função",
+  name: z.string().min(2, {
+    message: "Nome precisa ter pelo menos 2 caracteres.",
   }),
+  email: z.string().email({
+    message: "Insira um email válido.",
+  }),
+  role: z.enum(["admin", "employee"]).default("employee"),
 });
 
-type FormValues = z.infer<typeof formSchema>;
-
-const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChange }) => {
-  const form = useForm<FormValues>({
+const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChange, onEmployeeAdded }) => {
+  const { refreshUser } = useAuth();
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -44,34 +44,41 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
       role: "employee",
     },
   });
-  
-  const { refreshUser } = useAuth();
-  
-  const onSubmit = async (values: FormValues) => {
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      await authService.createUser(values.name, values.email, values.role);
-      toast.success("Funcionário adicionado com sucesso!");
-      form.reset();
-      refreshUser();
-      onOpenChange(false);
+      const newEmployee = await authService.createUser(values.name, values.email, values.role);
+      if (newEmployee) {
+        toast.success("Funcionário adicionado com sucesso!");
+        onOpenChange(false);
+        form.reset();
+        
+        // Refresh user list
+        await refreshUser();
+        
+        if (onEmployeeAdded) {
+          onEmployeeAdded(newEmployee);
+        }
+      } else {
+        toast.error("Erro ao adicionar funcionário.");
+      }
     } catch (error) {
       console.error("Error creating employee:", error);
-      toast.error("Erro ao adicionar funcionário. Verifique se o email já está cadastrado.");
+      toast.error("Erro ao adicionar funcionário.");
     }
-  };
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Adicionar Funcionário</DialogTitle>
           <DialogDescription>
-            Preencha os dados para cadastrar um novo funcionário.
+            Crie um novo usuário para acessar o sistema.
           </DialogDescription>
         </DialogHeader>
-        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -79,13 +86,12 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
                 <FormItem>
                   <FormLabel>Nome</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nome completo" {...field} />
+                    <Input placeholder="Nome do funcionário" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
             <FormField
               control={form.control}
               name="email"
@@ -93,47 +99,40 @@ const AddEmployeeDialog: React.FC<AddEmployeeDialogProps> = ({ open, onOpenChang
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="email@exemplo.com" {...field} />
+                    <Input placeholder="email@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
             <FormField
               control={form.control}
               name="role"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-3">
                   <FormLabel>Função</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma função" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="employee">Funcionário</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      {roleOptions.map((option) => (
+                        <FormItem key={option.value} className="flex items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value={option.value} id={option.value} />
+                          </FormControl>
+                          <FormLabel htmlFor={option.value}>{option.label}</FormLabel>
+                        </FormItem>
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
-            <DialogFooter className="pt-4">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
-                  <span className="flex items-center">
-                    <span className="animate-spin mr-2 h-4 w-4 border-2 border-b-transparent border-white rounded-full"></span>
-                    Cadastrando...
-                  </span>
-                ) : "Cadastrar"}
-              </Button>
+            <DialogFooter>
+              <Button type="submit">Adicionar</Button>
             </DialogFooter>
           </form>
         </Form>
