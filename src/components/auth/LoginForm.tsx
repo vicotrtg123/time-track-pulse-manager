@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -34,6 +35,13 @@ const LoginForm: React.FC = () => {
     setIsLoading(true);
     
     try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (authError) throw authError;
+      
       const success = await login(email, password);
       if (success) {
         navigate("/dashboard");
@@ -55,7 +63,7 @@ const LoginForm: React.FC = () => {
           <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
             <Clock className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">Time Track Pulse Manager</CardTitle>
+          <CardTitle className="text-2xl text-center">Ponto</CardTitle>
           <p className="text-sm text-muted-foreground text-center">
             Entre com suas credenciais para acessar o sistema
           </p>
@@ -80,9 +88,6 @@ const LoginForm: React.FC = () => {
                 }}
                 required
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Exemplo: dsv4@bremen.com.br (Admin, senha: 123)
-              </p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -99,9 +104,6 @@ const LoginForm: React.FC = () => {
                 }}
                 required
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Para o administrador Bremen: 123
-              </p>
             </div>
           </CardContent>
           <CardFooter>

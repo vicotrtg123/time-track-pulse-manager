@@ -3,6 +3,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 import { User } from "@/types";
 import { authService } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
   currentUser: User | null;
@@ -10,7 +11,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
-  refreshUser: () => Promise<void>; // Add this method
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,22 +25,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const checkUser = async () => {
       setIsLoading(true);
       
-      // Check if we have a session stored
-      const user = localStorage.getItem('currentUser');
-      if (user) {
-        try {
-          const parsedUser = JSON.parse(user);
-          setCurrentUser(parsedUser);
-        } catch (error) {
-          console.error("Error parsing stored user:", error);
+      try {
+        // Check for existing Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          const supabaseUser = session.user;
+          const userData = await authService.getUserById(supabaseUser.id) || {
+            id: supabaseUser.id,
+            name: supabaseUser.email?.split('@')[0] || 'User', 
+            email: supabaseUser.email || '',
+            role: 'employee',
+            active: true
+          };
+          
+          setCurrentUser(userData);
+          localStorage.setItem('currentUser', JSON.stringify(userData));
+        } else {
+          setCurrentUser(null);
+          localStorage.removeItem('currentUser');
+        }
+      } catch (error) {
+        console.error("Error checking user session:", error);
+        localStorage.removeItem('currentUser');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        // Handle auth state changes
+        if (session && event === 'SIGNED_IN') {
+          // Using setTimeout to avoid Supabase auth deadlocks
+          setTimeout(async () => {
+            try {
+              const supabaseUser = session.user;
+              const userData = await authService.getUserById(supabaseUser.id) || {
+                id: supabaseUser.id,
+                name: supabaseUser.email?.split('@')[0] || 'User',
+                email: supabaseUser.email || '',
+                role: 'employee',
+                active: true
+              };
+              
+              setCurrentUser(userData);
+              localStorage.setItem('currentUser', JSON.stringify(userData));
+            } catch (error) {
+              console.error("Error getting user data:", error);
+            }
+          }, 0);
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
           localStorage.removeItem('currentUser');
         }
       }
-      
-      setIsLoading(false);
-    };
+    );
     
     checkUser();
+    
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Add the refreshUser function
@@ -61,13 +110,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In a real implementation, this would authenticate using Supabase Auth
-      // For now, we're just using our mocked auth service
-      const user = await authService.login(email, password);
+      // Authenticate using Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      if (user) {
-        setCurrentUser(user);
-        localStorage.setItem('currentUser', JSON.stringify(user));
+      if (error) {
+        throw error;
+      }
+      
+      if (data.user) {
+        // Get user data from our service
+        const userData = await authService.getUserById(data.user.id) || {
+          id: data.user.id,
+          name: data.user.email?.split('@')[0] || 'User',
+          email: data.user.email || '',
+          role: 'admin',  // Default to admin for new Supabase users
+          active: true
+        };
+        
+        setCurrentUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
         return true;
       }
       
@@ -80,9 +144,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setCurrentUser(null);
+      localStorage.removeItem('currentUser');
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   return (
@@ -93,7 +162,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout,
         isAuthenticated,
         isLoading,
-        refreshUser // Add this to the context value
+        refreshUser
       }}
     >
       {children}
