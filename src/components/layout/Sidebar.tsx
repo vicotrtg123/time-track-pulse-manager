@@ -24,6 +24,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
+import { User } from "@/types";
 
 interface SidebarLinkProps {
   to: string;
@@ -68,11 +70,46 @@ export default function Sidebar() {
   const isMobile = useIsMobile();
   const [pendingCount, setPendingCount] = useState(0);
   const location = useLocation();
+  const [userData, setUserData] = useState<User | null>(null);
+  
+  useEffect(() => {
+    if (currentUser) {
+      setUserData(currentUser);
+      
+      // Ensure we have the latest user data from Supabase
+      const fetchUserData = async () => {
+        try {
+          const { data: profileData, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+            
+          if (!error && profileData) {
+            const freshUserData: User = {
+              id: profileData.id,
+              name: profileData.name,
+              email: profileData.email,
+              role: profileData.role as "admin" | "employee",
+              active: profileData.active,
+              avatar: profileData.avatar
+            };
+            
+            setUserData(freshUserData);
+          }
+        } catch (err) {
+          console.error("Error fetching user data in sidebar:", err);
+        }
+      };
+      
+      fetchUserData();
+    }
+  }, [currentUser]);
   
   // Load the number of pending approval requests
   useEffect(() => {
     const loadPendingCount = async () => {
-      if (currentUser?.role === "admin") {
+      if (currentUser?.role === "admin" || userData?.role === "admin") {
         try {
           const pendingRequests = await changeRequestService.getPendingRequests();
           setPendingCount(pendingRequests.length || 0);
@@ -88,7 +125,7 @@ export default function Sidebar() {
     const intervalId = setInterval(loadPendingCount, 60000); // every minute
     
     return () => clearInterval(intervalId);
-  }, [currentUser]);
+  }, [currentUser, userData]);
   
   // Force expand sidebar on mobile
   useEffect(() => {
@@ -105,7 +142,7 @@ export default function Sidebar() {
     return null;
   }
 
-  const isAdmin = currentUser.role === "admin";
+  const isAdmin = userData?.role === "admin" || currentUser?.role === "admin";
 
   return (
     <aside className={cn(
@@ -181,13 +218,13 @@ export default function Sidebar() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={currentUser.avatar} />
-                  <AvatarFallback>{currentUser.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                  <AvatarImage src={userData?.avatar || currentUser.avatar} />
+                  <AvatarFallback>{userData?.name?.charAt(0).toUpperCase() || currentUser.name?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" side="right">
-              <div className="px-2 py-1.5 text-sm font-medium">{currentUser.name}</div>
+              <div className="px-2 py-1.5 text-sm font-medium">{userData?.name || currentUser.name}</div>
               <DropdownMenuItem onClick={handleLogout} className="text-red-500 cursor-pointer">
                 <LogOut size={16} className="mr-2" />
                 Sair
@@ -198,12 +235,12 @@ export default function Sidebar() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={currentUser.avatar} />
-                <AvatarFallback>{currentUser.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarImage src={userData?.avatar || currentUser.avatar} />
+                <AvatarFallback>{userData?.name?.charAt(0).toUpperCase() || currentUser.name?.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-sm font-medium">{currentUser.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
+                <p className="text-sm font-medium">{userData?.name || currentUser.name}</p>
+                <p className="text-xs text-muted-foreground capitalize">{userData?.role || currentUser.role}</p>
               </div>
             </div>
             <Button 

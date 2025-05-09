@@ -2,6 +2,7 @@
 import { User } from "@/types";
 import { toast } from "sonner";
 import { users as mockUsers } from "@/lib/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 
 // Using a copy of the data to allow runtime changes
 let users = [...mockUsers];
@@ -14,26 +15,62 @@ const generateId = () => {
 export const authService = {
   login: async (email: string, password: string): Promise<User | null> => {
     try {
-      // Simulating a small network delay (300ms)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Authenticate using Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      // Find user with matching email who is active
-      const user = users.find(u => u.email === email && u.active);
+      if (error) {
+        console.error("Erro ao fazer login:", error);
+        return null;
+      }
       
-      if (!user) {
+      if (data.user) {
+        // Get user data from Supabase
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+          
+        if (profileError) {
+          console.error("Erro ao buscar perfil do usuário:", profileError);
+          // Fallback to mock users if profile fetch fails
+          const mockUser = users.find(u => u.email === email && u.active);
+          return mockUser || null;
+        }
+        
+        if (profileData) {
+          const userData: User = {
+            id: profileData.id,
+            name: profileData.name,
+            email: profileData.email,
+            role: profileData.role as "admin" | "employee",
+            active: profileData.active,
+            avatar: profileData.avatar
+          };
+          
+          return userData;
+        }
+      }
+      
+      // Fallback to mock implementation
+      const mockUser = users.find(u => u.email === email && u.active);
+      
+      if (!mockUser) {
         console.error("Usuário não encontrado ou inativo");
         return null;
       }
       
       // Simple simulation: for dsv4@bremen.com.br, accepts password "123"
-      // For others, any password would be accepted for testing
-      if (user.email === "dsv4@bremen.com.br" && password !== "123") {
+      if (mockUser.email === "dsv4@bremen.com.br" && password !== "123") {
         console.error("Senha incorreta para usuário admin");
         return null;
       }
       
-      console.log("Usuário autenticado:", user);
-      return user;
+      console.log("Usuário autenticado:", mockUser);
+      return mockUser;
     } catch (error) {
       console.error("Erro ao fazer login:", error);
       return null;
@@ -42,7 +79,25 @@ export const authService = {
 
   getUserById: async (userId: string): Promise<User | null> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // First try to get the user from Supabase
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (!profileError && profileData) {
+        return {
+          id: profileData.id,
+          name: profileData.name,
+          email: profileData.email,
+          role: profileData.role as "admin" | "employee",
+          active: profileData.active,
+          avatar: profileData.avatar
+        };
+      }
+      
+      // Fallback to mock data
       const user = users.find(u => u.id === userId);
       
       if (!user) {
@@ -59,8 +114,24 @@ export const authService = {
 
   getAllUsers: async (): Promise<User[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      // Return all users ordered by name
+      // Get users from Supabase
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('name');
+      
+      if (!profilesError && profilesData) {
+        return profilesData.map(profile => ({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role as "admin" | "employee",
+          active: profile.active,
+          avatar: profile.avatar
+        }));
+      }
+      
+      // Fallback to mock data
       return [...users].sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error("Erro ao buscar todos os usuários:", error);
@@ -70,14 +141,21 @@ export const authService = {
   
   createUser: async (name: string, email: string, role: string): Promise<User | null> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Check if a user with the same email already exists
-      if (users.some(u => u.email === email)) {
+      // Check if a user with the same email already exists in Supabase
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', email);
+        
+      if (!checkError && existingUsers && existingUsers.length > 0) {
         console.error("Já existe um usuário com este email");
         throw new Error("Já existe um usuário com este email");
       }
       
+      // Note: The actual user creation happens in AddEmployeeDialog.tsx
+      // via supabase.auth.signUp, and a trigger in Supabase creates the profile
+      
+      // For backward compatibility, also add to mock users
       const newUser: User = {
         id: generateId(),
         name,
@@ -98,19 +176,24 @@ export const authService = {
   
   disableUser: async (userId: string): Promise<boolean> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const userIndex = users.findIndex(u => u.id === userId);
-      if (userIndex === -1) {
-        console.error("Usuário não encontrado para desativar:", userId);
-        throw new Error("Usuário não encontrado");
+      // Update user status in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({ active: false })
+        .eq('id', userId);
+        
+      if (error) {
+        throw error;
       }
       
-      // Update user to inactive
-      users[userIndex] = {
-        ...users[userIndex],
-        active: false
-      };
+      // Also update in mock data for backward compatibility
+      const userIndex = users.findIndex(u => u.id === userId);
+      if (userIndex !== -1) {
+        users[userIndex] = {
+          ...users[userIndex],
+          active: false
+        };
+      }
       
       console.log("Usuário desativado:", userId);
       return true;

@@ -2,6 +2,7 @@
 import { TimeRecord } from "@/types";
 import { getCurrentDate, getCurrentTime, isValidTimeRange } from "@/lib/utils";
 import { timeRecords as mockTimeRecords } from "@/lib/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 
 // Using a copy of the data to allow runtime changes
 let timeRecords = [...mockTimeRecords];
@@ -11,14 +12,41 @@ const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+// Helper function to transform Supabase record to our TimeRecord type
+const transformRecord = (record: any): TimeRecord => ({
+  id: record.id,
+  userId: record.user_id,
+  date: record.date,
+  checkIn: record.check_in,
+  checkOut: record.check_out,
+  notes: record.notes
+});
+
+// Helper function to convert a date string to DB format (YYYY-MM-DD)
+const formatDateForDB = (dateStr: string) => {
+  // Assuming dateStr is already in YYYY-MM-DD format
+  return dateStr;
+};
+
 // Time records related API functions
 export const timeRecordService = {
   // Get all records
   getAllRecords: async (): Promise<TimeRecord[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // First try to get records from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
       
-      // Sort by date and check-in time (descending)
+      if (!error && recordsData) {
+        return recordsData.map(transformRecord);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getAllRecords");
+      
       return [...timeRecords].sort((a, b) => {
         // First compare by date
         const dateComparison = b.date.localeCompare(a.date);
@@ -36,7 +64,21 @@ export const timeRecordService = {
   // Get records between dates (for all users - admin only)
   getAllRecordsBetweenDates: async (startDate: string, endDate: string): Promise<TimeRecord[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Try to get records from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .gte('date', formatDateForDB(startDate))
+        .lte('date', formatDateForDB(endDate))
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (!error && recordsData) {
+        return recordsData.map(transformRecord);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getAllRecordsBetweenDates");
       
       return [...timeRecords]
         .filter(record => {
@@ -59,7 +101,20 @@ export const timeRecordService = {
   // Get records for a specific user
   getUserRecords: async (userId: string): Promise<TimeRecord[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Try to get records from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (!error && recordsData) {
+        return recordsData.map(transformRecord);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getUserRecords");
       
       return [...timeRecords]
         .filter(record => record.userId === userId)
@@ -80,7 +135,22 @@ export const timeRecordService = {
   // Get user records between dates
   getUserRecordsBetweenDates: async (userId: string, startDate: string, endDate: string): Promise<TimeRecord[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Try to get records from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', formatDateForDB(startDate))
+        .lte('date', formatDateForDB(endDate))
+        .order('date', { ascending: false })
+        .order('check_in', { ascending: false });
+      
+      if (!error && recordsData) {
+        return recordsData.map(transformRecord);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getUserRecordsBetweenDates");
       
       return [...timeRecords]
         .filter(record => {
@@ -103,9 +173,23 @@ export const timeRecordService = {
   // Get today's records for a user
   getTodayRecords: async (userId: string): Promise<TimeRecord[]> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
       const today = getCurrentDate();
+      
+      // Try to get records from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', formatDateForDB(today))
+        .order('check_in', { ascending: false });
+      
+      if (!error && recordsData) {
+        return recordsData.map(transformRecord);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getTodayRecords");
+      
       return [...timeRecords]
         .filter(record => record.userId === userId && record.date === today)
         .sort((a, b) => b.checkIn.localeCompare(a.checkIn));
@@ -118,9 +202,24 @@ export const timeRecordService = {
   // Get active record (check in without check out)
   getActiveRecord: async (userId: string): Promise<TimeRecord | null> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
       const today = getCurrentDate();
+      
+      // Try to get record from Supabase
+      const { data: recordsData, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', formatDateForDB(today))
+        .is('check_out', null)
+        .maybeSingle();
+      
+      if (!error && recordsData) {
+        return transformRecord(recordsData);
+      }
+      
+      // Fallback to mock data
+      console.log("Falling back to mock data for getActiveRecord");
+      
       const activeRecord = timeRecords.find(
         record => record.userId === userId && record.date === today && record.checkOut === null
       );
@@ -141,8 +240,6 @@ export const timeRecordService = {
   // Create a new check-in record
   checkIn: async (userId: string, notes?: string): Promise<TimeRecord | null> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
       // Check if there is an active check-in without check-out
       const hasActive = await timeRecordService.hasActiveCheckIn(userId);
       
@@ -154,17 +251,40 @@ export const timeRecordService = {
       const today = getCurrentDate();
       const now = getCurrentTime();
 
-      const newRecord: TimeRecord = {
-        id: generateId(),
-        userId,
-        date: today,
-        checkIn: now,
-        checkOut: null,
-        notes
-      };
+      // Create new record in Supabase
+      const { data: newRecordData, error } = await supabase
+        .from('time_records')
+        .insert({
+          user_id: userId,
+          date: formatDateForDB(today),
+          check_in: now,
+          check_out: null,
+          notes
+        })
+        .select()
+        .single();
       
-      timeRecords.push(newRecord);
-      console.log("Nova entrada registrada:", newRecord);
+      if (error) {
+        console.error("Error inserting record into Supabase:", error);
+        
+        // Fallback to mock data
+        const newRecord: TimeRecord = {
+          id: generateId(),
+          userId,
+          date: today,
+          checkIn: now,
+          checkOut: null,
+          notes
+        };
+        
+        timeRecords.push(newRecord);
+        console.log("Nova entrada registrada (mock):", newRecord);
+        
+        return newRecord;
+      }
+      
+      const newRecord = transformRecord(newRecordData);
+      console.log("Nova entrada registrada (Supabase):", newRecord);
       
       return newRecord;
     } catch (error) {
@@ -176,40 +296,75 @@ export const timeRecordService = {
   // Register a check-out
   checkOut: async (userId: string, recordId: string, notes?: string): Promise<TimeRecord | null> => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const checkOutTime = getCurrentTime();
       
-      // Get current record to see if it can be updated
-      const recordIndex = timeRecords.findIndex(r => r.id === recordId);
+      // First, get the current record to validate time range
+      let currentRecord: TimeRecord | null = null;
       
-      if (recordIndex === -1) {
+      // Try to get from Supabase
+      const { data: recordData, error: fetchError } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('id', recordId)
+        .maybeSingle();
+        
+      if (!fetchError && recordData) {
+        currentRecord = transformRecord(recordData);
+      } else {
+        // Fallback to mock data
+        currentRecord = timeRecords.find(r => r.id === recordId) || null;
+      }
+      
+      if (!currentRecord) {
         console.error("Registro não encontrado para saída:", recordId);
         return null;
       }
       
-      const record = timeRecords[recordIndex];
-      
-      if (record.checkOut) {
+      if (currentRecord.checkOut) {
         console.error("Registro já possui horário de saída");
         return null;
       }
-
-      const checkOutTime = getCurrentTime();
       
       // Validate time range
-      if (!isValidTimeRange(record.checkIn, checkOutTime)) {
+      if (!isValidTimeRange(currentRecord.checkIn, checkOutTime)) {
         console.error("Intervalo de tempo inválido: saída antes da entrada");
         return null;
       }
-
-      // Update the record
-      const updatedRecord = {
-        ...record,
-        checkOut: checkOutTime,
-        notes: notes || record.notes
-      };
       
-      timeRecords[recordIndex] = updatedRecord;
-      console.log("Registro de saída atualizado:", updatedRecord);
+      // Update the record in Supabase
+      const { data: updatedData, error: updateError } = await supabase
+        .from('time_records')
+        .update({
+          check_out: checkOutTime,
+          notes: notes || currentRecord.notes
+        })
+        .eq('id', recordId)
+        .select()
+        .single();
+        
+      if (updateError) {
+        console.error("Error updating record in Supabase:", updateError);
+        
+        // Fallback to mock data
+        const recordIndex = timeRecords.findIndex(r => r.id === recordId);
+        if (recordIndex !== -1) {
+          const updatedRecord = {
+            ...timeRecords[recordIndex],
+            checkOut: checkOutTime,
+            notes: notes || timeRecords[recordIndex].notes
+          };
+          
+          timeRecords[recordIndex] = updatedRecord;
+          console.log("Registro de saída atualizado (mock):", updatedRecord);
+          
+          return updatedRecord;
+        }
+        
+        return null;
+      }
+      
+      const updatedRecord = transformRecord(updatedData);
+      console.log("Registro de saída atualizado (Supabase):", updatedRecord);
       
       return updatedRecord;
     } catch (error) {
